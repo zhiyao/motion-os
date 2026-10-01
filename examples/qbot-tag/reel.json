@@ -1,0 +1,715 @@
+{
+ "id": "qbot-tag",
+ "title": "Qbot x Claude Tag",
+ "version": 5,
+ "path": "examples/qbot-tag",
+ "src": "video.mp4",
+ "w": 1920,
+ "h": 1080,
+ "fps": 30,
+ "duration": 44.033,
+ "reference": "Anthropic \"Claude Tag\" launch video",
+ "brand": {
+  "colors": [
+   {
+    "id": "ink",
+    "name": "Ink",
+    "v": "#0F0D17"
+   },
+   {
+    "id": "navy",
+    "name": "Navy",
+    "v": "#1F1447"
+   },
+   {
+    "id": "purple",
+    "name": "Qbot purple",
+    "v": "#7B5CFF"
+   },
+   {
+    "id": "lav",
+    "name": "Lavender",
+    "v": "#C3B1FF"
+   },
+   {
+    "id": "bubble",
+    "name": "Bubble",
+    "v": "#FFFFFF"
+   }
+  ],
+  "fonts": [
+   {
+    "id": "head",
+    "name": "Headlines",
+    "v": "Inter Tight"
+   },
+   {
+    "id": "body",
+    "name": "Body",
+    "v": "Inter"
+   }
+  ],
+  "logo": null
+ },
+ "audio": {
+  "music": null,
+  "bpm": 88,
+  "drop": 4.7,
+  "musicVol": 0.6,
+  "sfxVol": 0.8,
+  "note": "Music removed from this example (licensed track)."
+ },
+ "assets": [
+  {
+   "id": "assets/nina.jpg",
+   "name": "nina.jpg",
+   "type": "image",
+   "from": "Higgsfield"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "S1",
+   "name": "Intro",
+   "t": [
+    0,
+    9
+   ],
+   "els": [
+    {
+     "id": "cards",
+     "label": "Chat cards",
+     "t": [
+      0.33,
+      4.6
+     ],
+     "box": [
+      25,
+      26,
+      50,
+      48
+     ],
+     "src": "src/v2.tsx:Exchange",
+     "props": {
+      "rows": {
+       "type": "list",
+       "label": "Messages",
+       "cols": [
+        {
+         "k": "from",
+         "type": "choice",
+         "options": [
+          "Nina",
+          "Qbot"
+         ]
+        },
+        {
+         "k": "text",
+         "type": "text"
+        }
+       ],
+       "v": [
+        {
+         "from": "Nina",
+         "text": "Qbot, can you chase my unpaid invoices while I'm in a pitch?"
+        },
+        {
+         "from": "Qbot",
+         "text": "On it. 3 unpaid, $4,792.44 total. Good luck in there."
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "title",
+     "label": "Title",
+     "t": [
+      4.6,
+      9
+     ],
+     "box": [
+      17,
+      38,
+      66,
+      22
+     ],
+     "src": "src/v2.tsx:Title",
+     "props": {
+      "lead": {
+       "type": "text",
+       "label": "Text",
+       "v": "Just ask"
+      },
+      "name": {
+       "type": "text",
+       "label": "Name",
+       "v": "Qbot"
+      },
+      "motion": {
+       "type": "motion",
+       "label": "Motion",
+       "v": "Types on, the Qbot mascot pops in between the words"
+      }
+     }
+    },
+    {
+     "id": "shot1",
+     "label": "Footage",
+     "t": [
+      0,
+      9
+     ],
+     "box": null,
+     "src": "footage/A/v1_crane.mp4",
+     "props": {
+      "motion": {
+       "type": "motion",
+       "label": "Shot",
+       "v": "Blurred office, crane down to top-down as Nina walks in, sits and opens her laptop"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S2",
+   "name": "On camera",
+   "t": [
+    9,
+    14.467
+   ],
+   "els": [
+    {
+     "id": "oncam",
+     "label": "She says",
+     "t": [
+      9,
+      14.467
+     ],
+     "box": null,
+     "src": "footage/A/v2_oncam.mp4",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "Today we're launching Qbot. It lives inside QuickSend, and it chases your invoices for you."
+      },
+      "motion": {
+       "type": "motion",
+       "label": "Shot",
+       "v": "Looks into the lens, background blurred, laptop sharp. Wide, then two punch-ins"
+      }
+     }
+    },
+    {
+     "id": "lower",
+     "label": "Name tag",
+     "t": [
+      9,
+      10.767
+     ],
+     "box": [
+      5,
+      72,
+      30,
+      16
+     ],
+     "src": "src/v2.tsx:LowerThird",
+     "props": {
+      "name": {
+       "type": "text",
+       "label": "Name",
+       "v": "Nina Reyes"
+      },
+      "role": {
+       "type": "text",
+       "label": "Title",
+       "v": "Product, QuickSend"
+      }
+     }
+    },
+    {
+     "id": "b1",
+     "label": "Qbot bubble",
+     "t": [
+      10.9,
+      14.467
+     ],
+     "box": [
+      52,
+      32,
+      46,
+      18
+     ],
+     "src": "src/v2.tsx:QbotSays",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Text",
+       "v": "Hey Nina, you've got 3 unpaid invoices. Want me to chase them?"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S3",
+   "name": "The problem",
+   "t": [
+    14.467,
+    18.733
+   ],
+   "els": [
+    {
+     "id": "vo0",
+     "label": "Voiceover",
+     "t": [
+      14.767,
+      18.6
+     ],
+     "box": null,
+     "src": "public/vo/A/n0.wav",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "Chasing invoices is the worst part of running your own business."
+      }
+     }
+    },
+    {
+     "id": "ots",
+     "label": "Footage",
+     "t": [
+      14.467,
+      18.733
+     ],
+     "box": [
+      30,
+      0,
+      70,
+      100
+     ],
+     "src": "footage/A/v3_ots.mp4",
+     "props": {
+      "motion": {
+       "type": "motion",
+       "label": "Shot",
+       "v": "Over the shoulder: she types, then picks up her phone"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S4",
+   "name": "Just ask",
+   "t": [
+    18.733,
+    22.4
+   ],
+   "els": [
+    {
+     "id": "vo1",
+     "label": "Voiceover",
+     "t": [
+      18.867,
+      22.1
+     ],
+     "box": null,
+     "src": "public/vo/A/n1.wav",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "Just ask Qbot who's paid, who's opened, and who's late."
+      }
+     }
+    },
+    {
+     "id": "ask",
+     "label": "Phone chat",
+     "t": [
+      18.733,
+      22.4
+     ],
+     "box": [
+      30,
+      0,
+      40,
+      100
+     ],
+     "src": "src/tag.tsx:PhoneAsk",
+     "props": {
+      "rows": {
+       "type": "list",
+       "label": "Messages",
+       "cols": [
+        {
+         "k": "from",
+         "type": "choice",
+         "options": [
+          "Qbot",
+          "You"
+         ]
+        },
+        {
+         "k": "text",
+         "type": "text"
+        }
+       ],
+       "v": [
+        {
+         "from": "You",
+         "text": "Has Maya opened her invoice?"
+        },
+        {
+         "from": "Qbot",
+         "text": "Maya Chen · INV-0043 · $781.94 · Opened"
+        },
+        {
+         "from": "Qbot",
+         "text": "Opened twice this morning. Want me to nudge her?"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S5",
+   "name": "Late payers",
+   "t": [
+    22.4,
+    26.5
+   ],
+   "els": [
+    {
+     "id": "vo2",
+     "label": "Voiceover",
+     "t": [
+      22.4,
+      24.6
+     ],
+     "box": null,
+     "src": "public/vo/A/n2.wav",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "When someone's late, it writes the follow-up."
+      }
+     }
+    },
+    {
+     "id": "b2",
+     "label": "Qbot bubble",
+     "t": [
+      22.47,
+      24.667
+     ],
+     "box": [
+      55,
+      30,
+      40,
+      19
+     ],
+     "src": "src/v2.tsx:QbotSays",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Text",
+       "v": "Heads up, Tom Becker is 5 days late. Want me to chase him?"
+      }
+     }
+    },
+    {
+     "id": "vo3",
+     "label": "Voiceover",
+     "t": [
+      25,
+      26.2
+     ],
+     "box": null,
+     "src": "public/vo/A/n3.wav",
+     "props": {
+      "text": {
+       "type": "text",
+       "label": "Line",
+       "v": "You just tap send."
+      }
+     }
+    },
+    {
+     "id": "chase",
+     "label": "Draft reply",
+     "t": [
+      24.667,
+      26.5
+     ],
+     "box": [
+      30,
+      40,
+      40,
+      40
+     ],
+     "src": "src/tag.tsx:PhoneChase",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Draft",
+       "v": "Hi Tom, quick reminder that your $1,150 invoice was due last week. You can pay it here anytime. Thanks!"
+      },
+      "btn": {
+       "type": "text",
+       "label": "Button",
+       "v": "Send"
+      },
+      "motion": {
+       "type": "motion",
+       "label": "Motion",
+       "v": "Finger taps Send exactly on the word \"send\""
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S6",
+   "name": "Paid",
+   "t": [
+    26.5,
+    31.067
+   ],
+   "els": [
+    {
+     "id": "vo4",
+     "label": "Voiceover",
+     "t": [
+      26.5,
+      28.5
+     ],
+     "box": null,
+     "src": "public/vo/A/n4.wav",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "And the second they pay, you'll know."
+      }
+     }
+    },
+    {
+     "id": "b3",
+     "label": "Qbot bubble",
+     "t": [
+      26.8,
+      28.7
+     ],
+     "box": [
+      3,
+      27,
+      38,
+      15
+     ],
+     "src": "src/v2.tsx:QbotSays",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Text",
+       "v": "Nair Dental just paid you $2,860.50."
+      }
+     }
+    },
+    {
+     "id": "vo5",
+     "label": "Voiceover",
+     "t": [
+      28.8,
+      30.7
+     ],
+     "box": null,
+     "src": "public/vo/A/n5.wav",
+     "props": {
+      "text": {
+       "type": "longtext",
+       "label": "Line",
+       "v": "So you can get back to the actual work."
+      }
+     }
+    },
+    {
+     "id": "close",
+     "label": "Footage",
+     "t": [
+      28.7,
+      31.067
+     ],
+     "box": null,
+     "src": "footage/A/v5_close.mp4",
+     "props": {
+      "motion": {
+       "type": "motion",
+       "label": "Shot",
+       "v": "Phone buzzes, small smile, then a close-up of her working"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S7",
+   "name": "Wrap up",
+   "t": [
+    31.067,
+    39.367
+   ],
+   "els": [
+    {
+     "id": "outchat",
+     "label": "Chat",
+     "t": [
+      31.67,
+      35.3
+     ],
+     "box": [
+      3,
+      22,
+      42,
+      32
+     ],
+     "src": "src/v2.tsx:ExitShot",
+     "props": {
+      "rows": {
+       "type": "list",
+       "label": "Messages",
+       "cols": [
+        {
+         "k": "from",
+         "type": "choice",
+         "options": [
+          "Nina",
+          "Qbot"
+         ]
+        },
+        {
+         "k": "text",
+         "type": "text"
+        }
+       ],
+       "v": [
+        {
+         "from": "Nina",
+         "text": "Qbot, how did we go?"
+        },
+        {
+         "from": "Qbot",
+         "text": "All 3 paid. $4,792.44 in. Enjoy your weekend."
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "exit",
+     "label": "Footage",
+     "t": [
+      31.067,
+      39.367
+     ],
+     "box": null,
+     "src": "footage/A/v7_exit.mp4",
+     "props": {
+      "motion": {
+       "type": "motion",
+       "label": "Shot",
+       "v": "Top-down: on her phone, puts it down, closes the laptop, leaves. Blur to the office"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S8",
+   "name": "End card",
+   "t": [
+    39.367,
+    44.033
+   ],
+   "els": [
+    {
+     "id": "lock",
+     "label": "Qbot lockup",
+     "t": [
+      39.7,
+      41.2
+     ],
+     "box": [
+      30,
+      38,
+      40,
+      24
+     ],
+     "src": "src/v2.tsx:EndCard",
+     "props": {
+      "name": {
+       "type": "text",
+       "label": "Name",
+       "v": "Qbot"
+      },
+      "motion": {
+       "type": "motion",
+       "label": "Motion",
+       "v": "Mascot pops in and blinks"
+      }
+     }
+    },
+    {
+     "id": "qlogo",
+     "label": "QuickSend logo",
+     "t": [
+      41.2,
+      44
+     ],
+     "box": [
+      22,
+      36,
+      56,
+      28
+     ],
+     "src": "src/v2.tsx:EndCard",
+     "props": {
+      "mark": {
+       "type": "text",
+       "label": "Wordmark",
+       "v": "QuickSend"
+      },
+      "tag": {
+       "type": "text",
+       "label": "Tagline",
+       "v": "Your invoices on autopilot"
+      },
+      "motion": {
+       "type": "motion",
+       "label": "Motion",
+       "v": "Mascot flips into the QuickSend arrow, Qbot flips into QuickSend"
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "notes": [
+  {
+   "id": 1,
+   "t": 15.6,
+   "x": 22,
+   "y": 78,
+   "el": "ots",
+   "text": "Example note: hold this shot half a second longer before the phone demo.",
+   "example": true
+  }
+ ]
+}

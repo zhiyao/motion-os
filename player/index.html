@@ -1,0 +1,752 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motion OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;800&family=Bricolage+Grotesque:wght@500;700;800&family=Instrument+Serif&family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Motion OS player. Layout: one calm desk. Player + timeline on the left, a single panel on the right. Labels short, explanations live in (i) tips. */
+:root{
+  --bg:#ECEEF2; --panel:#FFFFFF; --panel-2:#F5F6F8; --line:#E1E4EA; --line-2:#CED3DB;
+  --ink:#14161B; --mute:#646C7A; --faint:#9AA1AD;
+  --accent:#2F5BFF; --accent-ink:#FFFFFF; --accent-soft:#E7ECFF;
+  --pin:#F2A516; --pin-ink:#2E2000; --pin-soft:#FFF4DC;
+  --ok:#157A3D; --ok-soft:#DDF2E4; --warn:#A8530A; --warn-soft:#FCEEDB;
+  --stage:#DADEE5; --tip:#14161B; --tip-ink:#F3F4F6;
+  --shadow:0 1px 2px rgba(20,22,27,.06),0 8px 24px rgba(20,22,27,.07);
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C0D10; --panel:#15171C; --panel-2:#1C1F25; --line:#262A31; --line-2:#343A44;
+  --ink:#ECEEF2; --mute:#9BA2AE; --faint:#636B77;
+  --accent:#7590FF; --accent-ink:#0B0F24; --accent-soft:#1B2242;
+  --pin:#F5B83D; --pin-ink:#2A1C00; --pin-soft:#2E2410;
+  --ok:#4ADE80; --ok-soft:#11281A; --warn:#FBBF24; --warn-soft:#2D2210;
+  --stage:#07080A; --tip:#ECEEF2; --tip-ink:#14161B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C0D10; --panel:#15171C; --panel-2:#1C1F25; --line:#262A31; --line-2:#343A44;
+  --ink:#ECEEF2; --mute:#9BA2AE; --faint:#636B77;
+  --accent:#7590FF; --accent-ink:#0B0F24; --accent-soft:#1B2242;
+  --pin:#F5B83D; --pin-ink:#2A1C00; --pin-soft:#2E2410;
+  --ok:#4ADE80; --ok-soft:#11281A; --warn:#FBBF24; --warn-soft:#2D2210;
+  --stage:#07080A; --tip:#ECEEF2; --tip-ink:#14161B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:13.5px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-rows:auto 1fr;height:100%;min-height:0}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.projsel{display:flex;align-items:center;gap:6px;padding-left:12px;border-left:1px solid var(--line);min-width:0}
+.projsel b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px}
+.ver{font-size:11px;color:var(--mute);padding:1px 6px;border:1px solid var(--line-2);border-radius:5px}
+.spacer{flex:1}
+.saved{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.saved i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.saved.dirty i{background:var(--pin)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--panel-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--mute)}
+.btn.ghost:hover{color:var(--ink);background:var(--panel-2)}
+.btn.sm{height:28px;padding:0 9px;font-size:12.5px}
+.btn .n{font-family:var(--mono);font-size:11px;padding:0 5px;border-radius:4px;background:rgba(255,255,255,.25)}
+.btn svg{width:15px;height:15px}
+
+.info{width:16px;height:16px;border-radius:50%;border:1px solid var(--line-2);background:none;color:var(--faint);font:600 10px/14px var(--sans);display:inline-grid;place-items:center;padding:0;flex:none;cursor:help}
+.info:hover,.info:focus-visible{color:var(--ink);border-color:var(--ink)}
+#tip{position:fixed;z-index:50;max-width:260px;background:var(--tip);color:var(--tip-ink);font-size:12px;line-height:1.45;padding:7px 10px;border-radius:8px;pointer-events:none;box-shadow:var(--shadow)}
+
+/* desk */
+.desk{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:0}
+.stage{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:auto;padding:14px 16px;gap:10px}
+.viewer-wrap{background:var(--stage);border-radius:12px;padding:14px;display:grid;place-items:center}
+.viewer{position:relative;width:100%;max-width:calc((100vh - 330px) * 16 / 9);min-width:min(100%,420px);aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.viewer video{position:absolute;inset:0;width:100%;height:100%;display:block;background:#fff}
+#live{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden}
+.overlay{position:absolute;inset:0}
+.overlay.note-mode{cursor:crosshair}
+.hot{position:absolute;border:2px solid var(--accent);border-radius:6px;pointer-events:none;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.hot.hover{border-style:dashed;background:none}
+.hot span{position:absolute;left:-2px;top:-22px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px 5px 5px 0;white-space:nowrap}
+.hot.in span{top:4px;left:4px;border-radius:5px}
+.pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 4px;background:var(--pin);color:var(--pin-ink);font:600 11px/20px var(--mono);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25);border:2px solid #fff;cursor:pointer;transition:opacity .2s,transform .2s}
+.pin.dim{opacity:0;transform:scale(.6);pointer-events:none}
+.pop{position:absolute;width:250px;background:var(--panel);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:grid;gap:8px;z-index:3}
+.pop .meta{font-size:11px;color:var(--mute)}
+.pop textarea{width:100%;min-height:60px;resize:vertical;border:1px solid var(--line-2);border-radius:7px;padding:7px 8px;background:var(--panel-2)}
+.pop .row{display:flex;gap:6px;justify-content:flex-end}
+.chip{position:absolute;right:10px;top:10px;font-size:11.5px;font-weight:600;padding:4px 6px 4px 10px;border-radius:99px;background:rgba(20,22,27,.8);color:#fff;display:flex;gap:6px;align-items:center}
+.chip .info{border-color:rgba(255,255,255,.5);color:#fff}
+.chip.left{left:10px;right:auto;padding-right:10px;pointer-events:none}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--pin)}
+
+/* transport */
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ib{width:34px;height:32px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--line-2);background:var(--panel)}
+.ib:hover{background:var(--panel-2)}
+.ib.on{background:var(--pin);border-color:var(--pin);color:var(--pin-ink)}
+.ib svg{width:16px;height:16px}
+.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;padding:0 4px;white-space:nowrap}
+.tc small{color:var(--mute)}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;height:30px;padding:0 9px;font-size:12.5px;font-weight:500;color:var(--mute)}
+.seg button.on{background:var(--ink);color:var(--panel)}
+
+/* timeline */
+.tl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow-x:auto}
+.tl-in{min-width:560px;position:relative;display:grid;gap:6px}
+.trk{position:relative;cursor:ew-resize}
+.trk.scenes{height:44px}
+.trk.pins{height:18px}
+.trk.beats{height:10px}
+.sb{position:absolute;top:0;bottom:0;border-radius:7px;background:var(--panel-2);border:1px solid var(--line);padding:5px 8px;overflow:hidden;cursor:pointer;display:grid;align-content:center}
+.sb b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb small{font-size:10.5px;color:var(--mute);display:flex;gap:5px;align-items:center;white-space:nowrap}
+.sb.on{background:var(--accent-soft);border-color:var(--accent)}
+.sd{width:7px;height:7px;border-radius:50%;background:var(--line-2);flex:none}
+.sd.approved{background:var(--ok)} .sd.changes{background:var(--pin)}
+.tp{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50% 50% 50% 2px;background:var(--pin);border:1.5px solid var(--panel);cursor:pointer}
+.bt{position:absolute;top:2px;bottom:2px;width:1px;background:var(--line-2)}
+.bt.down{background:var(--faint)}
+.bt.dropline{width:2px;top:0;bottom:0;background:var(--accent)}
+.ph{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);pointer-events:none;z-index:2}
+.ph::before{content:"";position:absolute;top:-2px;left:-5px;width:12px;height:8px;border-radius:3px;background:var(--ink)}
+
+/* panel */
+.panel{background:var(--panel);border-left:1px solid var(--line);min-height:0;overflow:auto;display:flex;flex-direction:column}
+.tabs{display:flex;gap:0;padding:6px 8px 0;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2;overflow-x:auto}
+.tab{border:0;background:none;padding:9px 10px;font-weight:500;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;gap:5px;align-items:center;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.tab .c{font-family:var(--mono);font-size:10.5px;padding:0 5px;border-radius:4px;background:var(--pin-soft);color:var(--warn)}
+.pane{padding:14px;display:grid;gap:12px;align-content:start}
+.ph2{display:flex;align-items:center;gap:8px}
+.ph2 h2{margin:0;font-size:16px;letter-spacing:-.01em;flex:1;min-width:0;text-wrap:balance}
+.lbl{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;display:flex;align-items:center;gap:6px}
+.status{display:inline-flex;border:1px solid var(--line-2);border-radius:99px;overflow:hidden}
+.status button{border:0;background:none;padding:3px 9px;font-size:11.5px;font-weight:500;color:var(--mute);display:flex;gap:5px;align-items:center}
+.status button.on{background:var(--panel-2);color:var(--ink)}
+
+.el{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.el.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.elh{display:flex;align-items:center;gap:8px;padding:10px;cursor:pointer;width:100%;border:0;background:none;text-align:left}
+.elh .ico{width:22px;height:22px;border-radius:6px;background:var(--panel-2);display:grid;place-items:center;color:var(--mute);flex:none}
+.elh .ico svg{width:13px;height:13px}
+.elh b{font-weight:600;font-size:13px;flex:1;min-width:0}
+.edot{width:7px;height:7px;border-radius:50%;background:var(--accent);visibility:hidden}
+.el.edited .edot{visibility:visible}
+.chev{color:var(--faint);transition:transform .15s}
+.el.sel .chev{transform:rotate(90deg)}
+.fields{display:none;gap:10px;padding:0 10px 12px}
+.el.sel .fields{display:grid}
+.f{display:grid;gap:4px}
+.fl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mute);min-height:18px}
+.fl .sp{flex:1}
+.undo{border:0;background:none;color:var(--accent);font-size:11.5px;padding:0;visibility:hidden}
+.f.changed .undo{visibility:visible}
+.f input[type=text],.f input[type=number],.f textarea,.f select{width:100%;border:1px solid var(--line-2);border-radius:7px;padding:6px 8px;background:var(--panel-2);min-width:0}
+.f textarea{min-height:52px;resize:vertical}
+.f.changed input[type=text],.f.changed input[type=number],.f.changed textarea,.f.changed select{border-color:var(--accent);background:var(--panel)}
+.claude{font-size:10px;font-weight:600;color:var(--warn);background:var(--warn-soft);padding:0 5px;border-radius:4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.colorf{display:flex;gap:6px;flex-wrap:wrap}
+.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.sw.on{border-color:var(--ink)}
+.media{display:flex;gap:10px;align-items:center}
+.media .th{width:48px;height:48px;border-radius:8px;background:var(--panel-2) center/cover no-repeat;border:1px solid var(--line);flex:none;display:grid;place-items:center;color:var(--faint);font-size:10px}
+.media .nm{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list{display:grid;gap:6px}
+.lr{display:grid;gap:6px;align-items:center}
+.lr input,.lr select{width:100%;border:1px solid var(--line-2);border-radius:7px;padding:5px 7px;background:var(--panel-2);min-width:0}
+.lr .x{border:0;background:none;color:var(--faint);padding:0 2px;font-size:15px}
+.lr .mth{width:30px;height:30px;border-radius:50%;background:var(--panel-2) center/cover;border:1px solid var(--line);padding:0}
+.add{border:1px dashed var(--line-2);background:none;border-radius:7px;padding:5px;font-size:12px;color:var(--mute)}
+
+.scr{display:grid;gap:4px}
+.scr .t{border:0;background:none;padding:0;font:11px var(--mono);color:var(--accent);justify-self:start}
+.scr input{width:100%;border:1px solid transparent;border-radius:6px;padding:5px 7px;background:var(--panel-2)}
+.scr input:focus{border-color:var(--line-2);background:var(--panel)}
+.scr.changed input{border-color:var(--accent)}
+.sgrp{display:grid;gap:8px}
+.sgrp + .sgrp{padding-top:12px;border-top:1px solid var(--line)}
+
+.brand{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.bc{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+.bc input[type=color]{width:30px;height:30px;border:0;padding:0;background:none;border-radius:6px;cursor:pointer}
+.bc b{font-size:12px;font-weight:600;display:block}
+.bc small{font:10.5px var(--mono);color:var(--mute)}
+.bc.changed{border-color:var(--accent)}
+
+.drop{border:1.5px dashed var(--line-2);border-radius:12px;padding:14px;display:grid;gap:10px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{font-size:13.5px}
+.drop .ways{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px}
+.ast{display:grid;gap:4px;font-size:10.5px;color:var(--mute);text-align:center;border:0;background:none;padding:0;min-width:0}
+.ast .th{aspect-ratio:1;border-radius:8px;background:var(--panel-2) center/cover no-repeat;border:1px solid var(--line);display:grid;place-items:center;color:var(--mute);font-size:10px;font-weight:600}
+.ast span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ast.mine .th{border-color:var(--accent)}
+.linkrow{display:flex;gap:6px}
+.linkrow input{flex:1;min-width:0;height:32px;border:1px solid var(--line-2);border-radius:8px;padding:0 9px;background:var(--panel-2)}
+.links{display:grid;gap:4px;font-size:12px}
+.links div{display:flex;gap:6px;align-items:center;min-width:0}
+.links span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;font-family:var(--mono);font-size:11px}
+.vol{display:flex;gap:10px;align-items:center}
+.vol input{flex:1;accent-color:var(--accent)}
+
+.note{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px}
+.note.sel{border-color:var(--pin);box-shadow:0 0 0 3px var(--pin-soft)}
+.nh{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--mute)}
+.num{width:20px;height:20px;border-radius:50% 50% 50% 3px;background:var(--pin);color:var(--pin-ink);font:600 10.5px/20px var(--mono);text-align:center;flex:none}
+.nh button{border:0;background:none;color:var(--faint);padding:0;font-size:15px;line-height:1}
+.nh .go{color:var(--accent);font-size:12px}
+.note textarea{width:100%;border:1px solid var(--line-2);border-radius:7px;padding:6px 8px;background:var(--panel-2);min-height:44px;resize:vertical}
+.tag{font-size:10px;font-weight:600;padding:0 5px;border-radius:4px;background:var(--panel-2);border:1px solid var(--line);color:var(--mute)}
+.tag.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.empty{font-size:12.5px;color:var(--mute);padding:18px;border:1px dashed var(--line-2);border-radius:10px;text-align:center}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(10,11,14,.45);display:grid;place-items:center;padding:16px;z-index:20}
+.sheet{width:min(640px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);border-radius:14px;border:1px solid var(--line-2);box-shadow:0 20px 60px rgba(0,0,0,.3);padding:20px;display:grid;gap:14px}
+.sheet h3{margin:0;font-size:18px;letter-spacing:-.01em;display:flex;gap:8px;align-items:center}
+.sheet p{margin:0;color:var(--mute)}
+.sheet textarea.out{width:100%;min-height:280px;font:12px/1.5 var(--mono);border:1px solid var(--line-2);border-radius:9px;padding:12px;background:var(--panel-2);resize:vertical}
+.sheet .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.stepn{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:start}
+.stepn > i{width:24px;height:24px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line-2);font:600 12px/22px var(--mono);text-align:center;font-style:normal}
+.stepn > div{display:grid;gap:8px;min-width:0}
+.stepn b{display:flex;gap:6px;align-items:center}
+.opts{display:grid;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.opt input{margin-top:3px;accent-color:var(--accent)}
+.steps{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.steps li{display:flex;gap:10px;align-items:center;color:var(--faint)}
+.steps li i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line-2);flex:none}
+.steps li.doing{color:var(--ink)} .steps li.doing i{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+.steps li.done{color:var(--ink)} .steps li.done i{background:var(--ok);border-color:var(--ok)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:9px;font-size:13px;font-weight:500;z-index:60;box-shadow:var(--shadow)}
+
+/* live sample stage */
+#live .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:120px 160px}
+#live .scene.left{align-items:flex-start}
+#live [data-el]{will-change:opacity,transform}
+
+@media (max-width:1100px){ .desk{grid-template-columns:minmax(0,1fr) 340px} }
+@media (max-width:820px){
+  .app{height:auto;min-height:100%}
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .stage{overflow:visible;padding:12px 16px}
+  .viewer-wrap{padding:8px}
+  .viewer{min-width:0;max-width:100%}
+  .panel{border-left:0;border-top:1px solid var(--line);overflow:visible}
+  .projsel{border-left:0;padding-left:0;order:3;flex-basis:100%}
+  .projsel b{max-width:none;flex:1}
+  .hide-sm{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 9h20M7 4l-2 5M12 4l-2 5M17 4l-2 5" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="15" r="2.2" fill="var(--pin)"/></svg>
+      Motion OS
+    </div>
+    <div class="projsel">
+      <b id="projTitle"></b><span class="ver mono" id="projVer"></span>
+      <button class="info" data-tip-id="proj">i</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="saved"><i></i><span>Auto-saved</span></div>
+    <button class="btn primary" id="sendBtn" data-tip="Turns every edit and note into one prompt. Copy it, then paste it into Claude.">Send to Claude <span class="n" id="sendN">0</span></button>
+  </header>
+
+  <div class="desk">
+    <section class="stage">
+      <div class="viewer-wrap">
+        <div class="viewer" id="viewer">
+          <video id="vid" playsinline preload="auto"></video>
+          <div class="overlay" id="overlay"><div id="hots"></div><div id="popLayer"></div></div>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="ib" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" id="playIco"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></button>
+        <div class="tc" id="tc">00:00.0</div>
+        <div class="spacer"></div>
+        <button class="ib" id="noteBtn" aria-label="Add a note" data-tip="Note mode (N). Click anywhere on the frame to pin a note to that exact moment and spot."><svg viewBox="0 0 16 16"><path d="M8 1.5c-3 0-5 2.1-5 4.8 0 3.4 5 8.2 5 8.2s5-4.8 5-8.2c0-2.7-2-4.8-5-4.8z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6.3" r="1.6" fill="currentColor"/></svg></button>
+        <div class="seg" id="speed" aria-label="Speed"><button data-r="0.5">½×</button><button data-r="1" class="on">1×</button><button data-r="2">2×</button></div>
+        <button class="ib" id="loopBtn" aria-label="Loop this scene" data-tip="Loop the current scene."><svg viewBox="0 0 16 16"><path d="M3 6.5A4.5 4.5 0 0 1 12.2 5M13 9.5A4.5 4.5 0 0 1 3.8 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.5 2v3.2H9.3M3.5 14v-3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button class="info hide-sm" data-tip="Space play · ← → one frame · Shift + ← → one second · [ ] previous or next scene · N note mode · Click any text or image in the frame to edit it.">i</button>
+      </div>
+      <div class="tl"><div class="tl-in" id="tl"></div></div>
+    </section>
+    <aside class="panel">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div id="pane"></div>
+    </aside>
+  </div>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+/* ================= project: everything comes from reel.json next to this page ================= */
+const FONTS = ['Bricolage Grotesque','Inter Tight','Instrument Serif','Space Grotesk','DM Sans','Inter','Geist'];
+const TIPS = {
+  proj:'The project file (reel.json) Claude wrote when it built this video. Every text, timing and asset in the panel comes from it.',
+  scene:'The pieces on screen in this scene. Click one here or in the frame to edit it.',
+  status:'Approved scenes are left alone when Claude makes the next version.',
+  motion:'How it moves. Only Claude can change this, so it goes into the prompt when you Send to Claude.',
+  timing:'When it appears and leaves, in seconds.',
+  script:'Every word in the video, in order. The fastest way to fix copy.',
+  colors:'Change a color once and every element using it updates.',
+  fonts:'Headline and body typefaces for the whole video.',
+  assets:'Images, video and sound used in the video. Add your own here, then swap them into any scene.',
+  add:'Drop new files into the assets/ folder next to reel.json, then say in a note where they go. Links are passed to Claude to download.',
+  music:'Background track. Claude lines the beat drop up with the scene you pick.',
+  notes:'Notes pin to an exact moment and spot. Use them for things a text box can\'t change, like motion or pacing.',
+  pending:'These reach the video when you Send to Claude and Claude re-renders it.',
+};
+
+/* ================= state ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = p => 1 - Math.pow(1 - clamp(p), 3);
+const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2,'0')}:${s.toFixed(1).padStart(4,'0')}`; };
+const vid = $('#vid'), overlay = $('#overlay');
+
+let P, st;
+let ui = {tab:'scene', scene:null, sel:null, mode:'edit', pop:null, selNote:null, loop:false, hover:null};
+const clock = {rate:1};
+let music = null;                 // <audio> for an uploaded music track
+
+// Edits and notes live in this browser, per project. When a new version loads, what was already sent is cleared.
+const KEY = () => 'motionos:' + P.id;
+function loadProject(){
+  const ver = P.version || 1;
+  try { st = JSON.parse(localStorage.getItem(KEY()) || 'null'); } catch (e) { st = null; }
+  st = Object.assign({over:{}, notes:JSON.parse(JSON.stringify(P.notes || [])), status:{}, links:[], sent:[], sentSnap:{}, ver}, st || {});
+  if (st.ver !== ver) {
+    st.over = Object.fromEntries(Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v)));
+    st.notes = st.notes.filter(n => !st.sent.includes(n.id)); st.links = st.links.filter(l => !l.sent);
+    st.sent = []; st.sentSnap = {}; st.ver = ver;
+  }
+  P.scenes.forEach(s => st.status[s.id] ??= 'review');
+  ui = {...ui, scene:P.scenes[0].id, sel:null, pop:null, selNote:null};
+  $('#projTitle').textContent = P.title; $('#projVer').textContent = 'v' + ver; document.title = P.title + ' · Motion OS';
+  vid.src = P.src + '?v=' + ver; vid.currentTime = 0.7;
+  setupMusic(); renderAll(); tick();
+}
+
+/* overrides: every edit is a path -> value */
+const get = (path, base) => path in st.over ? st.over[path] : base;
+const set = (path, v, base) => { if (JSON.stringify(v) === JSON.stringify(base)) delete st.over[path]; else st.over[path] = v; markDirty(); };
+const sceneOf = id => P.scenes.find(s => s.id === id);
+const allEls = () => P.scenes.flatMap(s => s.els.map(e => ({...e, s:s.id})));
+const elById = id => allEls().find(e => e.id === id);
+const pv = (e, k) => get(`${e.id}.${k}`, e.props[k].v);
+const elTime = e => get(`${e.id}.@time`, e.t);
+const brandColor = id => { const c = P.brand.colors.find(c => c.id === id); return c ? get('brand.color.' + id, c.v) : id; };
+const color = v => typeof v === 'string' && v.startsWith('brand.') ? brandColor(v.slice(6)) : v;
+const brandFont = id => get('brand.font.' + id, P.brand.fonts.find(f => f.id === id)?.v);
+const assetSrc = id => id === 'brand.logo' ? assetSrc(get('brand.logo', P.brand.logo)) : id || null;
+const assetName = id => { if (id === 'brand.logo') return 'Brand logo'; const a = P.assets.find(a => a.id === id); return a?.name || id; };
+const elEdited = e => Object.keys(st.over).some(k => k.startsWith(e.id + '.'));
+const sceneAt = t => P.scenes.find(s => t < s.t[1] - 1e-6) || P.scenes[P.scenes.length - 1];
+const now = () => vid.currentTime;
+const openNotes = () => st.notes.filter(n => !st.sent.includes(n.id));
+const pendingEdits = () => Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v)).length + st.links.filter(l => !l.sent).length;
+
+function markDirty(){
+  if (!P) return;
+  try { localStorage.setItem(KEY(), JSON.stringify(st)); } catch (e) {}
+  $('#sendN').textContent = pendingEdits() + openNotes().length;
+}
+
+/* ================= playback ================= */
+function play(){ vid.play(); syncMusic(true); closePop(); setPlayIcon(true); }
+function pause(){ if (!P) return; vid.pause(); syncMusic(false); setPlayIcon(false); }
+const playing = () => !vid.paused;
+function setPlayIcon(on){ $('#playIco').innerHTML = on ? '<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/>' : '<path d="M4 2.5v11l9-5.5z" fill="currentColor"/>'; }
+function seek(t){
+  t = clamp(t, 0, P.duration - 0.02);
+  vid.currentTime = t;
+  syncMusic(playing());
+  const s = sceneAt(t).id;
+  if (s !== ui.scene) { ui.scene = s; if (ui.sel && elById(ui.sel)?.s !== s) ui.sel = null; renderTL(); if (ui.tab === 'scene') renderPane(); }
+  tick();
+}
+function vframe(){ if (!vid.paused) { if (ui.loop) { const s = sceneOf(ui.scene); if (vid.currentTime >= s.t[1] - 0.03) vid.currentTime = s.t[0]; } tick(); requestAnimationFrame(vframe); } }
+vid.addEventListener('play', () => { setPlayIcon(true); vframe(); });
+vid.addEventListener('pause', () => { setPlayIcon(false); tick(); });
+vid.addEventListener('seeked', tick);
+vid.addEventListener('loadedmetadata', () => { if (vid.currentTime < 0.1) vid.currentTime = 0.7; tick(); });
+vid.addEventListener('ended', () => setPlayIcon(false));
+function tick(){
+  const t = now(), s = sceneAt(t);
+  if (s.id !== ui.scene && playing() && !ui.loop) { ui.scene = s.id; if (ui.sel && elById(ui.sel)?.s !== s.id) ui.sel = null; renderTL(); if (ui.tab === 'scene') renderPane(); }
+  $('#tc').innerHTML = `${fmt(t)} <small>/ ${fmt(P.duration)} · ${s.id} ${esc(s.name)}</small>`;
+  placePH(); renderHots();
+}
+function setupMusic(){
+  if (music) { music.pause(); music = null; }
+  const id = get('audio.music', P.audio.music), src = id && assetSrc(id);
+  if (src) { music = new Audio(src); music.volume = get('audio.musicVol', P.audio.musicVol); }
+}
+function syncMusic(on){ if (!music) return; if (on) { music.currentTime = now(); music.playbackRate = clock.rate; music.play().catch(() => {}); } else music.pause(); }
+
+new ResizeObserver(() => { placePH(); renderHots(); }).observe($('#viewer'));
+
+/* ================= frame overlay: select + pins ================= */
+function boxOf(e){
+  const t = now(), [a, b] = elTime(e);
+  if (t < a || t > b) return null;
+  return e.box;
+}
+function hit(x, y){
+  return sceneOf(ui.scene).els.map(e => ({e, b: boxOf({...e, s:ui.scene})})).filter(o => o.b && x >= o.b[0] && x <= o.b[0] + o.b[2] && y >= o.b[1] && y <= o.b[1] + o.b[3])
+    .sort((p, q) => p.b[2] * p.b[3] - q.b[2] * q.b[3])[0]?.e;
+}
+function renderHots(){
+  const t = now(), out = [];
+  for (const id of [ui.sel, ui.hover]) {
+    if (!id || (id === ui.hover && id === ui.sel && out.length)) continue;
+    const e = elById(id); if (!e || e.s !== ui.scene) continue;
+    const b = boxOf(e); if (!b) continue;
+    out.push(`<div class="hot ${id === ui.sel ? '' : 'hover'} ${b[1] < 8 ? 'in' : ''}" style="left:${b[0]}%;top:${b[1]}%;width:${b[2]}%;height:${b[3]}%">${id === ui.sel ? `<span>${esc(e.label)}</span>` : ''}</div>`);
+  }
+  st.notes.forEach((n, i) => out.push(`<div class="pin ${Math.abs(n.t - t) > 0.9 || st.sent.includes(n.id) ? 'dim' : ''}" data-pin="${n.id}" style="left:${n.x}%;top:${n.y}%">${i + 1}</div>`));
+  if (ui.mode === 'note') out.push(`<div class="chip left"><i></i>Click to add a note</div>`);
+  else if (pendingEdits()) out.push(`<div class="chip">${pendingEdits()} edit${pendingEdits() === 1 ? '' : 's'} waiting <button class="info" data-tip-id="pending">i</button></div>`);
+  $('#hots').innerHTML = out.join('');
+}
+const pt = ev => { const r = overlay.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width * 100, (ev.clientY - r.top) / r.height * 100]; };
+overlay.addEventListener('mousemove', ev => { if (ui.mode !== 'edit' || ev.target.closest('.pop,.chip')) return; const h = hit(...pt(ev))?.id || null; if (h !== ui.hover) { ui.hover = h; renderHots(); } overlay.style.cursor = h ? 'pointer' : ''; });
+overlay.addEventListener('mouseleave', () => { ui.hover = null; renderHots(); });
+overlay.addEventListener('click', ev => {
+  if (ev.target.closest('.pop,.chip')) return;
+  const pin = ev.target.closest('[data-pin]'); if (pin) return focusNote(+pin.dataset.pin);
+  const [x, y] = pt(ev), h = hit(x, y);
+  if (ui.mode === 'note' || ev.altKey) { pause(); ui.pop = {x, y, t:now(), el:h?.id || null}; return renderPop(); }
+  if (ui.pop) return closePop();
+  if (h) { pause(); selectEl(h.id); } else playing() ? pause() : play();
+});
+function renderPop(){
+  const p = ui.pop;
+  $('#popLayer').innerHTML = p ? `<div class="pin" style="left:${p.x}%;top:${p.y}%">${st.notes.length + 1}</div>
+    <div class="pop" style="left:${Math.min(Math.max(p.x, 2), 68)}%;${p.y > 55 ? `bottom:${100 - p.y + 4}%` : `top:${p.y + 4}%`}">
+      <div class="meta mono">${fmt(p.t)} · ${sceneAt(p.t).id}${p.el ? ' · ' + esc(elById(p.el).label) : ''}</div>
+      <textarea id="popTa" placeholder="What should change?"></textarea>
+      <div class="row"><button class="btn ghost sm" data-act="cancel">Cancel</button><button class="btn primary sm" data-act="add">Add note</button></div></div>` : '';
+  if (p) $('#popTa').focus();
+}
+$('#popLayer').addEventListener('click', ev => {
+  const a = ev.target.closest('[data-act]'); if (!a) return;
+  if (a.dataset.act === 'cancel') return closePop();
+  const text = $('#popTa').value.trim(); if (!text) return $('#popTa').focus();
+  const p = ui.pop, id = Math.max(0, ...st.notes.map(n => n.id)) + 1;
+  st.notes.push({id, t:+p.t.toFixed(2), x:+p.x.toFixed(1), y:+p.y.toFixed(1), el:p.el, text}); st.notes.sort((a, b) => a.t - b.t);
+  const sid = sceneAt(p.t).id; if (st.status[sid] === 'review') st.status[sid] = 'changes';
+  ui.pop = null; ui.selNote = id; renderPop(); markDirty(); renderAll(); toast('Note added');
+});
+$('#popLayer').addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) $('[data-act="add"]').click(); if (ev.key === 'Escape') closePop(); });
+function closePop(){ if (ui.pop) { ui.pop = null; renderPop(); } }
+function setMode(m){ ui.mode = m; $('#noteBtn').classList.toggle('on', m === 'note'); overlay.classList.toggle('note-mode', m === 'note'); renderHots(); }
+
+/* ================= timeline ================= */
+const pct = t => (t / P.duration * 100) + '%';
+function renderTL(){
+  let beats = '';
+  if (P.audio.bpm) { const bt = 60 / P.audio.bpm; let i = 0; for (let t = P.audio.drop % bt; t < P.duration; t += bt, i++) { const k = Math.round((t - P.audio.drop) / bt); beats += `<span class="bt ${Math.abs(t - P.audio.drop) < 0.01 ? 'dropline' : k % 4 === 0 ? 'down' : ''}" style="left:${pct(t)}"></span>`; } }
+  $('#tl').innerHTML = `
+    <div class="trk scenes">${P.scenes.map(s => `<div class="sb ${ui.scene === s.id ? 'on' : ''}" data-scene="${s.id}" style="left:${pct(s.t[0])};width:calc(${pct(s.t[1] - s.t[0])} - 3px)"><b>${esc(s.name)}</b><small><span class="sd ${st.status[s.id]}"></span>${(s.t[1] - s.t[0]).toFixed(1)}s</small></div>`).join('')}</div>
+    <div class="trk pins">${st.notes.map(n => `<span class="tp" data-note="${n.id}" style="left:${pct(n.t)};${st.sent.includes(n.id) ? 'opacity:.35' : ''}" data-tip="${esc(n.text)}"></span>`).join('')}</div>
+    ${beats ? `<div class="trk beats" data-tip="Beat grid at ${P.audio.bpm} BPM. The blue line is where the music drop lands.">${beats}</div>` : ''}
+    <div class="ph" id="ph"></div>`;
+  placePH();
+}
+function placePH(){ const ph = $('#ph'); if (ph && P) ph.style.left = `calc(${pct(now())} - 1px)`; }
+let scrubbing = false;
+const scrubTo = ev => { const r = $('#tl .trk').getBoundingClientRect(); seek((ev.clientX - r.left) / r.width * P.duration); };
+$('#tl').addEventListener('pointerdown', ev => {
+  const n = ev.target.closest('[data-note]'); if (n) return focusNote(+n.dataset.note);
+  if (!ev.target.closest('.trk')) return;
+  scrubbing = true; pause(); scrubTo(ev); ev.target.setPointerCapture?.(ev.pointerId);
+});
+window.addEventListener('pointermove', ev => { if (scrubbing) scrubTo(ev); });
+window.addEventListener('pointerup', () => scrubbing = false);
+
+/* ================= panel ================= */
+const ICON = {text:'<path d="M3 4h10M8 4v9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
+  media:'<rect x="2.5" y="3" width="11" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 11l3-3 3 3 2-2 2 2" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+  list:'<path d="M3 4h10M3 8h10M3 12h7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
+  number:'<path d="M5 3l-1 10M11 3l-1 10M3 6h10M2.5 10h10" stroke="currentColor" stroke-width="1.4" fill="none"/>'};
+const elIcon = e => { const t = Object.values(e.props).map(p => p.type); return ICON[t.includes('list') ? 'list' : t.includes('media') ? 'media' : e.view === 'counter' ? 'number' : 'text']; };
+const TABS = [['scene','Scene'],['script','Script'],['style','Style'],['media','Media'],['notes','Notes']];
+function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${ui.tab === k ? 'on' : ''}" data-tab="${k}">${l}${k === 'notes' && openNotes().length ? ` <span class="c">${openNotes().length}</span>` : ''}</button>`).join(''); }
+$('#tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; renderTabs(); renderPane(); } };
+function renderPane(){ $('#pane').innerHTML = ({scene:scenePane, script:scriptPane, style:stylePane, media:mediaPane, notes:notesPane})[ui.tab](); }
+function renderAll(){ renderTabs(); renderPane(); renderTL(); renderHots(); markDirty(); }
+
+function scenePane(){
+  const s = sceneOf(ui.scene), stv = st.status[s.id];
+  return `<div class="pane">
+    <div class="ph2"><h2>${esc(s.name)}</h2>
+      <div class="status" data-status>${[['review','Review'],['changes','Fix'],['approved','Approved']].map(([v, l]) => `<button class="${stv === v ? 'on' : ''}" data-v="${v}"><span class="sd ${v}"></span>${l}</button>`).join('')}</div>
+      <button class="info" data-tip-id="status">i</button></div>
+    <div class="lbl">On screen <button class="info" data-tip-id="scene">i</button></div>
+    ${s.els.map(e => elCard({...e, s:s.id})).join('')}
+  </div>`;
+}
+function elCard(e){
+  return `<div class="el ${ui.sel === e.id ? 'sel' : ''} ${elEdited(e) ? 'edited' : ''}" data-id="${e.id}">
+    <button class="elh" data-pick="${e.id}"><span class="ico"><svg viewBox="0 0 16 16">${elIcon(e)}</svg></span><b>${esc(e.label)}</b><span class="edot"></span><svg class="chev" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></button>
+    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${timingHTML(e)}</div>` : ''}
+  </div>`;
+}
+function fieldHTML(e, k, p){
+  const path = `${e.id}.${k}`, v = get(path, p.v), ch = path in st.over;
+  const head = (extra = '') => `<div class="fl">${esc(p.label)}${extra}<span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>`;
+  let body = '';
+  if (p.type === 'text') body = `<input type="text" data-path="${path}" value="${esc(v)}">`;
+  else if (p.type === 'longtext') body = `<textarea data-path="${path}" rows="2">${esc(v)}</textarea>`;
+  else if (p.type === 'number') body = `<input type="number" data-path="${path}" data-num value="${esc(v)}" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''}>`;
+  else if (p.type === 'choice') body = `<div class="seg" style="justify-self:start">${p.options.map(o => `<button data-choice="${path}" data-val="${esc(o)}" class="${o === v ? 'on' : ''}">${esc(o)}</button>`).join('')}</div>`;
+  else if (p.type === 'motion') return `<div class="f ${ch ? 'changed' : ''}">${head(` <span class="claude">Claude</span><button class="info" data-tip-id="motion">i</button>`)}<textarea data-path="${path}" rows="2">${esc(v)}</textarea></div>`;
+  else if (p.type === 'color') body = `<div class="colorf">${P.brand.colors.map(c => `<button class="sw ${v === 'brand.' + c.id ? 'on' : ''}" style="background:${brandColor(c.id)}" data-color="${path}" data-val="brand.${c.id}" data-tip="${esc(c.name)}"></button>`).join('')}</div>`;
+  else if (p.type === 'media') body = `<div class="media"><div class="th" style="${thumbStyle(v)}">${thumbLabel(v)}</div><span class="nm">${esc(assetName(v))}</span><button class="btn sm" data-swap="${path}">Swap</button></div>`;
+  else if (p.type === 'list') body = listHTML(path, p, v);
+  return `<div class="f ${ch ? 'changed' : ''}">${head()}${body}</div>`;
+}
+function listHTML(path, p, rows){
+  const tmpl = p.cols.map(c => c.type === 'media' ? '30px' : c.type === 'choice' ? '86px' : c.type === 'number' ? '70px' : '1fr').join(' ') + ' 16px';
+  return `<div class="list">${rows.map((r, i) => `<div class="lr" style="grid-template-columns:${tmpl}">${p.cols.map(c => {
+    const at = `data-list="${path}" data-i="${i}" data-k="${c.k}"`;
+    if (c.type === 'media') return `<button class="mth" style="${thumbStyle(r[c.k])}" data-swap="${path}" data-i="${i}" data-k="${c.k}" aria-label="Swap image"></button>`;
+    if (c.type === 'choice') return `<select ${at}>${c.options.map(o => `<option ${o === r[c.k] ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    return `<input type="${c.type === 'number' ? 'number' : 'text'}" ${at} value="${esc(r[c.k])}">`;
+  }).join('')}<button class="x" data-del-row="${path}" data-i="${i}" aria-label="Remove row">×</button></div>`).join('')}
+    <button class="add" data-add-row="${path}">+ Add row</button></div>`;
+}
+function timingHTML(e){
+  const path = `${e.id}.@time`, v = elTime(e), ch = path in st.over;
+  return `<div class="f ${ch ? 'changed' : ''}"><div class="fl">Timing<button class="info" data-tip-id="timing">i</button><span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>
+    <div class="row2"><input type="number" step="0.1" data-time="${e.id}" data-ix="0" value="${v[0]}" aria-label="In"><input type="number" step="0.1" data-time="${e.id}" data-ix="1" value="${v[1]}" aria-label="Out"></div></div>`;
+}
+const thumbStyle = id => { const s = assetSrc(id); return s ? `background-image:url('${s}')` : ''; };
+const thumbLabel = id => assetSrc(id) ? '' : 'None';
+
+function scriptPane(){
+  const groups = P.scenes.map(s => {
+    const items = [];
+    s.els.forEach(e => Object.entries(e.props).forEach(([k, p]) => {
+      if (p.type === 'text' || p.type === 'longtext') items.push({e, path:`${e.id}.${k}`, base:p.v, label:`${e.label}${Object.keys(e.props).length > 2 ? ' · ' + p.label : ''}`});
+      if (p.type === 'list') get(`${e.id}.${k}`, p.v).forEach((r, i) => p.cols.forEach(c => { if (c.type === 'text') items.push({e, list:`${e.id}.${k}`, i, k:c.k, val:r[c.k], label:`${e.label} ${i + 1}${r.from ? ' · ' + r.from : ''}`}); }));
+    }));
+    return `<div class="sgrp"><div class="lbl">${esc(s.name)}</div>${items.map(it => it.list
+      ? `<div class="scr ${it.list in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(elTime(it.e)[0])} · ${esc(it.label)}</button><input data-list="${it.list}" data-i="${it.i}" data-k="${it.k}" value="${esc(it.val)}"></div>`
+      : `<div class="scr ${it.path in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(elTime(it.e)[0])} · ${esc(it.label)}</button><input data-path="${it.path}" value="${esc(get(it.path, it.base))}"></div>`).join('')}</div>`;
+  }).join('');
+  return `<div class="pane"><div class="lbl">Every word <button class="info" data-tip-id="script">i</button></div>${groups}</div>`;
+}
+function stylePane(){
+  return `<div class="pane">
+    <div class="lbl">Colors <button class="info" data-tip-id="colors">i</button></div>
+    <div class="brand">${P.brand.colors.map(c => { const path = 'brand.color.' + c.id, v = get(path, c.v);
+      return `<label class="bc ${path in st.over ? 'changed' : ''}"><input type="color" data-bcolor="${c.id}" value="${v}"><span><b>${esc(c.name)}</b><small>${v.toUpperCase()}</small></span></label>`; }).join('')}</div>
+    <div class="lbl">Fonts <button class="info" data-tip-id="fonts">i</button></div>
+    ${P.brand.fonts.map(f => { const path = 'brand.font.' + f.id, v = get(path, f.v);
+      return `<div class="f ${path in st.over ? 'changed' : ''}"><div class="fl">${esc(f.name)}<span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>
+        <select data-path="${path}" style="font-family:'${v}'">${[...new Set([v, ...FONTS])].map(o => `<option ${o === v ? 'selected' : ''} style="font-family:'${o}'">${esc(o)}</option>`).join('')}</select></div>`; }).join('')}
+    <div class="lbl">Logo</div>
+    ${(() => { const path = 'brand.logo', v = get(path, P.brand.logo);
+      return `<div class="f ${path in st.over ? 'changed' : ''}"><div class="media"><div class="th" style="${thumbStyle(v)}">${thumbLabel(v)}</div><span class="nm">${v ? esc(assetName(v)) : 'No logo yet'}</span><button class="btn sm" data-swap="brand.logo">${v ? 'Swap' : 'Add'}</button><button class="undo" data-undo="${path}">Undo</button></div></div>`; })()}
+  </div>`;
+}
+function mediaPane(){
+  const mus = get('audio.music', P.audio.music), lib = P.assets;
+  return `<div class="pane">
+    <div class="drop"><b>Add your files</b>
+      <div class="fl" style="justify-content:center">Put them in this project's assets/ folder, or paste a link <button class="info" data-tip-id="add">i</button></div>
+      <div class="linkrow"><input type="url" id="linkIn" placeholder="Drive, Dropbox or a website"><button class="btn sm" data-add="link">Add</button></div>
+    </div>
+    ${st.links.length ? `<div class="links">${st.links.map((l, i) => `<div><span>${esc(l.url)}</span>${l.sent ? '<span class="tag ok">Sent</span>' : '<span class="tag">For Claude</span>'}<button class="btn ghost sm" data-del-link="${i}" aria-label="Remove link">×</button></div>`).join('')}</div>` : ''}
+    <div class="lbl">In this video <button class="info" data-tip-id="assets">i</button></div>
+    <div class="lib">${lib.map(a => `<div class="ast ${a.mine ? 'mine' : ''}"><div class="th" style="${a.type === 'image' ? thumbStyle(a.id) : ''}">${a.type === 'image' ? '' : a.type.toUpperCase()}</div><span>${esc(a.name)}</span></div>`).join('')}</div>
+    <div class="lbl">Music <button class="info" data-tip-id="music">i</button></div>
+    <div class="media"><div class="th">♪</div><span class="nm">${mus ? esc(assetName(mus)) : 'No track yet'}</span><button class="btn sm" data-swap="audio.music" data-type="audio">${mus ? 'Swap' : 'Add'}</button></div>
+    ${P.audio.bpm ? `<div class="fl">Beat drop lands at <b class="mono" style="color:var(--ink)">${P.audio.drop.toFixed(1)}s</b> · ${P.audio.bpm} BPM</div>` : ''}
+    <div class="vol"><span class="fl" style="width:56px">Music</span><input type="range" min="0" max="1" step="0.05" data-vol="audio.musicVol" value="${get('audio.musicVol', P.audio.musicVol)}"></div>
+    <div class="vol"><span class="fl" style="width:56px">Effects</span><input type="range" min="0" max="1" step="0.05" data-vol="audio.sfxVol" value="${get('audio.sfxVol', P.audio.sfxVol)}"></div>
+  </div>`;
+}
+function notesPane(){
+  if (!st.notes.length) return `<div class="pane"><div class="empty">No notes yet.<br>Press <b>N</b>, then click the frame.</div></div>`;
+  return `<div class="pane"><div class="lbl">Notes <button class="info" data-tip-id="notes">i</button></div>${st.notes.map((n, i) => `<div class="note ${ui.selNote === n.id ? 'sel' : ''}" data-id="${n.id}">
+    <div class="nh"><span class="num">${i + 1}</span><button class="go mono" data-go-note="${n.id}">${fmt(n.t)}</button><span>${n.el && elById(n.el) ? esc(elById(n.el).label) : sceneAt(n.t).name}</span>${n.example ? '<span class="tag">Example</span>' : ''}${st.sent.includes(n.id) ? '<span class="tag ok">Sent</span>' : ''}<span class="spacer"></span><button data-del-note="${n.id}" aria-label="Delete note">×</button></div>
+    <textarea data-note-text="${n.id}">${esc(n.text)}</textarea></div>`).join('')}</div>`;
+}
+
+/* panel events */
+function changed(){ renderTL(); renderHots(); markDirty(); }
+function touchScene(sid){ if (sid && st.status[sid] === 'review') st.status[sid] = 'changes'; }
+const baseOf = path => {
+  if (path.startsWith('brand.color.')) return P.brand.colors.find(c => c.id === path.slice(12)).v;
+  if (path.startsWith('brand.font.')) return P.brand.fonts.find(f => f.id === path.slice(11)).v;
+  if (path === 'brand.logo') return P.brand.logo;
+  if (path.startsWith('audio.')) return P.audio[path.slice(6)];
+  const [id, k] = path.split('.'), e = elById(id); return k === '@time' ? e.t : e.props[k].v;
+};
+const sidOf = path => elById(path.split('.')[0])?.s;
+$('#pane').addEventListener('input', ev => {
+  const t = ev.target, d = t.dataset;
+  if (d.path) { const v = 'num' in d ? Number(t.value) : t.value; set(d.path, v, baseOf(d.path)); touchScene(sidOf(d.path));
+    t.closest('.f,.scr')?.classList.toggle('changed', d.path in st.over); if (d.path.startsWith('brand.font')) t.style.fontFamily = `'${t.value}'`;
+    const card = t.closest('.el'); if (card) card.classList.toggle('edited', elEdited(elById(card.dataset.id)));
+    return changed(); }
+  if (d.list) { const base = baseOf(d.list), rows = JSON.parse(JSON.stringify(get(d.list, base))); rows[+d.i][d.k] = t.type === 'number' ? Number(t.value) : t.value; set(d.list, rows, base); touchScene(sidOf(d.list));
+    t.closest('.f,.scr')?.classList.toggle('changed', d.list in st.over); return changed(); }
+  if (d.time) { const e = elById(d.time), v = [...elTime(e)]; v[+d.ix] = Math.round(Number(t.value) * 10) / 10; set(`${d.time}.@time`, v, e.t); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.time}.@time` in st.over); return changed(); }
+  if (d.bcolor) { set('brand.color.' + d.bcolor, t.value, baseOf('brand.color.' + d.bcolor)); t.closest('.bc').classList.toggle('changed', ('brand.color.' + d.bcolor) in st.over); t.nextElementSibling.querySelector('small').textContent = t.value.toUpperCase(); return changed(); }
+  if (d.vol) { set(d.vol, Number(t.value), baseOf(d.vol)); if (music && d.vol === 'audio.musicVol') music.volume = Number(t.value); return changed(false); }
+  if (d.noteText) { st.notes.find(n => n.id === +d.noteText).text = t.value; markDirty(); }
+});
+$('#pane').addEventListener('change', ev => { if (ev.target.tagName === 'SELECT') ev.target.dispatchEvent(new Event('input', {bubbles:true})); });
+$('#pane').addEventListener('click', ev => {
+  const q = s => ev.target.closest(s);
+  let b;
+  if (b = q('[data-status] button')) { st.status[ui.scene] = b.dataset.v; markDirty(); renderPane(); renderTL(); return; }
+  if (b = q('[data-pick]')) { const id = b.dataset.pick; return ui.sel === id ? (ui.sel = null, renderPane(), renderHots()) : selectEl(id); }
+  if (b = q('[data-undo]')) { delete st.over[b.dataset.undo]; if (b.dataset.undo === 'audio.music' || b.dataset.undo === 'brand.logo') setupMusic(); renderPane(); return changed(); }
+  if (b = q('[data-choice]')) { set(b.dataset.choice, b.dataset.val, baseOf(b.dataset.choice)); touchScene(sidOf(b.dataset.choice)); renderPane(); return changed(); }
+  if (b = q('[data-color]')) { set(b.dataset.color, b.dataset.val, baseOf(b.dataset.color)); touchScene(sidOf(b.dataset.color)); renderPane(); return changed(); }
+  if (b = q('[data-swap]')) return openPicker(b.dataset.swap, b.dataset.i, b.dataset.k, b.dataset.type || 'image');
+  if (b = q('[data-add-row]')) { const p = b.dataset.addRow, base = baseOf(p), rows = JSON.parse(JSON.stringify(get(p, base))); rows.push({...rows[rows.length - 1]}); set(p, rows, base); touchScene(sidOf(p)); renderPane(); return changed(); }
+  if (b = q('[data-del-row]')) { const p = b.dataset.delRow, base = baseOf(p), rows = JSON.parse(JSON.stringify(get(p, base))); rows.splice(+b.dataset.i, 1); set(p, rows, base); touchScene(sidOf(p)); renderPane(); return changed(); }
+  if (b = q('[data-seek]')) { pause(); return seek(+b.dataset.seek); }
+  if (b = q('[data-go-note]')) return focusNote(+b.dataset.goNote);
+  if (b = q('[data-del-note]')) { st.notes = st.notes.filter(n => n.id !== +b.dataset.delNote); markDirty(); return renderAll(); }
+  if (b = q('[data-add]')) return addLink();
+  if (b = q('[data-del-link]')) { st.links.splice(+b.dataset.delLink, 1); markDirty(); return renderPane(); }
+});
+$('#pane').addEventListener('keydown', ev => { if (ev.target.id === 'linkIn' && ev.key === 'Enter') addLink(); });
+function addLink(){ const i = $('#linkIn'), url = i.value.trim(); if (!/^https?:\/\//i.test(url)) { toast('Paste a full link starting with https://'); return; } st.links.push({url}); i.value = ''; markDirty(); renderPane(); toast('Link added. Claude downloads it when you send.'); }
+
+/* ================= asset picker (assets listed in reel.json) ================= */
+function openPicker(path, i, k, type){
+  const lib = P.assets.filter(a => a.type === type);
+  const d = sheet(`<h3>Choose ${type === 'audio' ? 'a track' : 'an image'}</h3>
+    ${lib.length ? `<div class="pick">${lib.map(a => `<button class="ast ${a.id.startsWith('up-') ? 'mine' : ''}" data-pickasset="${a.id}"><div class="th" style="${type === 'image' ? thumbStyle(a.id) : ''}">${type === 'image' ? '' : '♪'}</div><span>${esc(a.name)}</span></button>`).join('')}</div>` : `<p>Nothing here yet.</p>`}
+    <div class="row"><button class="btn ghost" data-close>Cancel</button></div>`);
+  const apply = id => {
+    if (i != null) { const base = baseOf(path), rows = JSON.parse(JSON.stringify(get(path, base))); rows[+i][k] = id; set(path, rows, base); }
+    else set(path, id, baseOf(path));
+    touchScene(sidOf(path)); if (path === 'audio.music') setupMusic();
+    d.remove(); renderPane(); changed(); toast('Swapped');
+  };
+  d.addEventListener('click', ev => { const b = ev.target.closest('[data-pickasset]'); if (b) apply(b.dataset.pickasset); });
+}
+
+/* ================= selection ================= */
+function selectEl(id){
+  const e = elById(id), [a, b] = elTime(e); ui.sel = id; ui.tab = 'scene';
+  if (ui.scene !== e.s) { ui.scene = e.s; }
+  const t = now(); if (t < a || t > b) seek(Math.min(a + 0.8, b - 0.05));
+  renderTabs(); renderPane(); renderTL(); renderHots();
+  document.querySelector(`.el[data-id="${id}"]`)?.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+function focusNote(id){ const n = st.notes.find(n => n.id === id); ui.selNote = id; ui.tab = 'notes'; pause(); seek(n.t); renderTabs(); renderPane();
+  document.querySelector(`.note[data-id="${id}"]`)?.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+
+/* ================= send to Claude: one prompt to copy and paste ================= */
+function describe(path, v){
+  const show = x => Array.isArray(x) ? x.map(r => Object.values(r).join(' | ')).join(' / ') : typeof x === 'string' && x.includes('/') ? assetName(x) : JSON.stringify(x);
+  const nice = path.startsWith('brand.color.') ? `Style · ${P.brand.colors.find(c => c.id === path.slice(12)).name} color (used everywhere)` : path.startsWith('brand.font.') ? `Style · ${P.brand.fonts.find(f => f.id === path.slice(11)).name} font` : path === 'brand.logo' ? 'Style · Logo' : path === 'audio.music' ? 'Audio · Music track' : path === 'audio.musicVol' ? 'Audio · Music volume' : path === 'audio.sfxVol' ? 'Audio · Effects volume' : null;
+  if (nice) return `- ${nice}: ${show(baseOf(path))} -> ${show(v)}`;
+  const [id, k] = path.split('.'), e = elById(id);
+  return `- [${fmt(elTime(e)[0])} · ${e.s} · ${e.label}] ${k === '@time' ? 'timing (s)' : e.props[k].label}${e.src ? ` (${e.src})` : ''}: ${show(baseOf(path))} -> ${show(v)}`;
+}
+function prompt(){
+  const ver = P.version || 1, fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v);
+  const L = [`Motion OS feedback for "${P.title}" v${ver}`, `Project: ${P.path || P.id} · ${P.w}x${P.h} · ${P.fps} fps · ${P.duration.toFixed(1)}s`, ''];
+  const edits = Object.entries(st.over).filter(fresh).filter(([k]) => !k.endsWith('.motion'));
+  const motion = Object.entries(st.over).filter(fresh).filter(([k]) => k.endsWith('.motion'));
+  if (edits.length) { L.push('## Edits (apply exactly)'); edits.forEach(([k, v]) => L.push(describe(k, v))); L.push(''); }
+  const notes = openNotes();
+  if (notes.length || motion.length) { L.push('## Notes (what I want changed)');
+    notes.forEach((n, i) => { const e = n.el && elById(n.el), s = sceneAt(n.t); L.push(`${i + 1}. [${fmt(n.t)} · ${s.id} ${s.name} · x ${n.x}% y ${n.y}%${e ? ` · on "${e.label}"${e.src ? ' (' + e.src + ')' : ''}` : ''}] ${n.text}`); });
+    motion.forEach(([k, v], i) => { const e = elById(k.split('.')[0]); L.push(`${notes.length + i + 1}. [${fmt(elTime(e)[0])} · ${e.s} · ${e.label} motion] ${v}`); }); L.push(''); }
+  const links = st.links.filter(l => !l.sent);
+  if (links.length) { L.push('## Links to download into assets/'); links.forEach(l => L.push('- ' + l.url)); L.push(''); }
+  L.push('## Scenes', P.scenes.map(s => `${s.id} ${s.name} (${fmt(s.t[0])}-${fmt(s.t[1])}): ${st.status[s.id] === 'approved' ? 'approved, do not touch' : st.status[s.id] === 'changes' ? 'needs changes' : 'in review'}`).join('\n'), '');
+  L.push('## Do', `Use the motion-os skill. Apply the edits exactly and work through the notes. Leave approved scenes alone. Re-render, check it, then update reel.json and set "version" to ${ver + 1} so Motion OS reloads.`);
+  return L.join('\n');
+}
+function sheet(html){ const d = document.createElement('div'); d.className = 'scrim'; d.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.remove(); }); document.body.appendChild(d); return d; }
+$('#sendBtn').onclick = () => {
+  if (!(pendingEdits() + openNotes().length)) return toast('Nothing to send yet. Edit something, or press N to pin a note.');
+  const text = prompt();
+  const d = sheet(`<h3>Send to Claude</h3><p>Copy this, then paste it into Claude.</p><textarea class="out" readonly></textarea><div class="row"><button class="btn ghost" data-close>Close</button><button class="btn primary" id="doCopy">Copy prompt</button></div>`);
+  d.querySelector('textarea').value = text;
+  const sent = () => { st.sent = [...new Set([...st.sent, ...openNotes().map(n => n.id)])]; st.sentSnap = JSON.parse(JSON.stringify(st.over)); st.links.forEach(l => l.sent = true); renderAll(); };
+  d.querySelector('#doCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText(text); sent(); d.remove(); toast('Copied. Paste it into Claude.'); }
+    catch (e) { const ta = d.querySelector('textarea'); ta.focus(); ta.select(); sent(); toast('Selected. Press Cmd+C, then paste it into Claude.'); }
+  };
+};
+
+/* ================= tooltips ================= */
+const tip = $('#tip');
+function showTip(el){ const text = el.dataset.tip || TIPS[el.dataset.tipId]; if (!text) return; tip.textContent = text; tip.hidden = false;
+  const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = clamp(r.left + r.width / 2 - w / 2, 8, innerWidth - w - 8) + 'px';
+  tip.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px'; }
+document.addEventListener('mouseover', ev => { const el = ev.target.closest('[data-tip],[data-tip-id]'); el ? showTip(el) : tip.hidden = true; });
+document.addEventListener('focusin', ev => { const el = ev.target.closest('[data-tip],[data-tip-id]'); el ? showTip(el) : tip.hidden = true; });
+document.addEventListener('click', ev => { const el = ev.target.closest('.info'); if (el) { ev.stopPropagation(); showTip(el); } }, true);
+document.addEventListener('scroll', () => tip.hidden = true, true);
+
+/* ================= transport + keys ================= */
+$('#playBtn').onclick = () => playing() ? pause() : play();
+$('#noteBtn').onclick = () => setMode(ui.mode === 'note' ? 'edit' : 'note');
+$('#loopBtn').onclick = () => { ui.loop = !ui.loop; $('#loopBtn').classList.toggle('on', ui.loop); };
+$('#speed').onclick = e => { const b = e.target.closest('button'); if (!b) return; clock.rate = vid.playbackRate = +b.dataset.r; if (music) music.playbackRate = clock.rate; [...$('#speed').children].forEach(x => x.classList.toggle('on', x === b)); };
+const sIdx = () => P.scenes.findIndex(s => s.id === ui.scene);
+const goScene = i => { const s = P.scenes[clamp(i, 0, P.scenes.length - 1)]; pause(); ui.sel = null; seek(s.t[0] + 0.05); };
+document.addEventListener('keydown', ev => {
+  if (document.querySelector('.scrim')) { if (ev.key === 'Escape') document.querySelector('.scrim').remove(); return; }
+  if (ev.target.closest('input,textarea,select')) return;
+  const f = 1 / P.fps;
+  if (ev.key === ' ') { ev.preventDefault(); playing() ? pause() : play(); }
+  else if (ev.key === 'ArrowRight') { ev.preventDefault(); pause(); seek(now() + (ev.shiftKey ? 1 : f)); }
+  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); pause(); seek(now() - (ev.shiftKey ? 1 : f)); }
+  else if (ev.key === ']') goScene(sIdx() + 1);
+  else if (ev.key === '[') goScene(sIdx() - 1);
+  else if (ev.key === 'n' || ev.key === 'N') setMode(ui.mode === 'note' ? 'edit' : 'note');
+  else if (ev.key === 'Escape') { closePop(); setMode('edit'); }
+});
+let toastT; function toast(msg){ document.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2200); }
+
+// Load reel.json, optionally jump to #t=12.5&el=id, then watch for the next version Claude renders.
+const hash = new URLSearchParams(location.hash.slice(1));
+fetch('reel.json', {cache:'no-store'}).then(r => r.json()).then(j => {
+  P = j; loadProject();
+  if (hash.get('t')) vid.addEventListener('loadedmetadata', () => { seek(+hash.get('t')); if (hash.get('el') && elById(hash.get('el'))) selectEl(hash.get('el')); }, {once:true});
+  setInterval(() => fetch('reel.json', {cache:'no-store'}).then(r => r.json()).then(n => {
+    if ((n.version || 1) !== (P.version || 1)) { toast(`v${n.version} is ready. Loading it.`); setTimeout(() => location.reload(), 900); }
+  }).catch(() => {}), 3000);
+}).catch(() => { $('#pane').innerHTML = '<div class="pane"><div class="empty">No reel.json next to this page.<br>Start Motion OS from Claude, or run: node player/serve.mjs your-project</div></div>'; });
+</script>
