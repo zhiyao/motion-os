@@ -80,6 +80,16 @@ button{cursor:pointer}
 .hot.hover{border-style:dashed;background:none}
 .hot span{position:absolute;left:-2px;top:-22px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px 5px 5px 0;white-space:nowrap}
 .hot.in span{top:4px;left:4px;border-radius:5px}
+.overlay.move-mode{cursor:default}
+.hot .hd{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;background:#fff;border:2px solid var(--accent);border-radius:3px;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.hot.can{border:1.5px dashed rgba(255,255,255,.75);background:none;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+#rp{position:absolute;inset:0}
+.hot .hd[data-h=nw]{left:0;top:0;cursor:nwse-resize} .hot .hd[data-h=ne]{left:100%;top:0;cursor:nesw-resize}
+.hot .hd[data-h=sw]{left:0;top:100%;cursor:nesw-resize} .hot .hd[data-h=se]{left:100%;top:100%;cursor:nwse-resize}
+.hot.mv{pointer-events:auto;cursor:move}
+.hot em{position:absolute;left:50%;top:100%;transform:translate(-50%,6px);background:var(--ink);color:var(--panel);font:500 10.5px var(--mono);font-style:normal;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.was{position:absolute;border:1.5px dashed rgba(255,255,255,.8);border-radius:6px;backdrop-filter:blur(8px) brightness(.85);-webkit-backdrop-filter:blur(8px) brightness(.85);pointer-events:none}
+.ghost{position:absolute;pointer-events:none}
 .pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 4px;background:var(--pin);color:var(--pin-ink);font:600 11px/20px var(--mono);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25);border:2px solid #fff;cursor:pointer;transition:opacity .2s,transform .2s}
 .pin.dim{opacity:0;transform:scale(.6);pointer-events:none}
 .pop{position:absolute;width:250px;background:var(--panel);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:grid;gap:8px;z-index:3}
@@ -102,6 +112,8 @@ button{cursor:pointer}
 .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:none;height:30px;padding:0 9px;font-size:12.5px;font-weight:500;color:var(--mute)}
 .seg button.on{background:var(--ink);color:var(--panel)}
+.seg.modes button{height:30px;padding:0 12px;font-weight:600}
+.seg.modes button.on[data-m=edit]{background:var(--accent);color:var(--accent-ink)}
 
 /* timeline */
 .tl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow-x:auto}
@@ -270,6 +282,7 @@ button{cursor:pointer}
     </div>
     <div class="spacer"></div>
     <div class="saved"><i></i><span>Auto-saved</span></div>
+    <button class="btn" id="exportBtn" hidden data-tip="Renders the video with your changes baked in and saves a new mp4. The original is never overwritten.">Export MP4</button>
     <button class="btn primary" id="sendBtn" data-tip="Turns every edit and note into one prompt. Copy it, then paste it into Claude.">Send to Claude <span class="n" id="sendN">0</span></button>
   </header>
 
@@ -278,17 +291,18 @@ button{cursor:pointer}
       <div class="viewer-wrap">
         <div class="viewer" id="viewer">
           <video id="vid" playsinline preload="auto"></video>
-          <div class="overlay" id="overlay"><div id="hots"></div><div id="popLayer"></div></div>
+          <div class="overlay" id="overlay"><div id="ghosts"></div><div id="hots"></div><div id="popLayer"></div></div>
         </div>
       </div>
       <div class="transport">
         <button class="ib" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" id="playIco"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></button>
+        <div class="seg modes" id="modes"><button data-m="preview" class="on" data-tip="Watch it. Click the frame to play or pause.">Preview</button><button data-m="edit" data-tip="Edit mode (E). The video pauses. Click anything in the frame, drag it to move, drag a corner to resize. Changes save automatically.">Edit</button></div>
         <div class="tc" id="tc">00:00.0</div>
         <div class="spacer"></div>
         <button class="ib" id="noteBtn" aria-label="Add a note" data-tip="Note mode (N). Click anywhere on the frame to pin a note to that exact moment and spot."><svg viewBox="0 0 16 16"><path d="M8 1.5c-3 0-5 2.1-5 4.8 0 3.4 5 8.2 5 8.2s5-4.8 5-8.2c0-2.7-2-4.8-5-4.8z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6.3" r="1.6" fill="currentColor"/></svg></button>
         <div class="seg" id="speed" aria-label="Speed"><button data-r="0.5">½×</button><button data-r="1" class="on">1×</button><button data-r="2">2×</button></div>
         <button class="ib" id="loopBtn" aria-label="Loop this scene" data-tip="Loop the current scene."><svg viewBox="0 0 16 16"><path d="M3 6.5A4.5 4.5 0 0 1 12.2 5M13 9.5A4.5 4.5 0 0 1 3.8 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.5 2v3.2H9.3M3.5 14v-3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-        <button class="info hide-sm" data-tip="Space play · ← → one frame · Shift + ← → one second · [ ] previous or next scene · N note mode · Click any text or image in the frame to edit it.">i</button>
+        <button class="info hide-sm" data-tip="Space play · ← → one frame · Shift + ← → one second · [ ] previous or next scene · E edit or preview · N note mode · Click any text or image in the frame to edit it.">i</button>
       </div>
       <div class="tl"><div class="tl-in" id="tl"></div></div>
     </section>
@@ -308,6 +322,7 @@ const TIPS = {
   scene:'The pieces on screen in this scene. Click one here or in the frame to edit it.',
   status:'Approved scenes are left alone when Claude makes the next version.',
   motion:'How it moves. Only Claude can change this, so it goes into the prompt when you Send to Claude.',
+  box:'Where it sits and how big, in % of the frame. In Edit mode you can drag it on the frame instead.',
   timing:'When it appears and leaves, in seconds.',
   script:'Every word in the video, in order. The fastest way to fix copy.',
   colors:'Change a color once and every element using it updates.',
@@ -325,10 +340,10 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const ease = p => 1 - Math.pow(1 - clamp(p), 3);
 const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2,'0')}:${s.toFixed(1).padStart(4,'0')}`; };
-const vid = $('#vid'), overlay = $('#overlay');
+let vid = $('#vid'); const overlay = $('#overlay');
 
 let P, st;
-let ui = {tab:'scene', scene:null, sel:null, mode:'edit', pop:null, selNote:null, loop:false, hover:null};
+let ui = {tab:'scene', scene:null, sel:null, mode:'preview', pop:null, selNote:null, loop:false, hover:null};
 const clock = {rate:1};
 let music = null;                 // <audio> for an uploaded music track
 
@@ -358,6 +373,7 @@ const allEls = () => P.scenes.flatMap(s => s.els.map(e => ({...e, s:s.id})));
 const elById = id => allEls().find(e => e.id === id);
 const pv = (e, k) => get(`${e.id}.${k}`, e.props[k].v);
 const elTime = e => get(`${e.id}.@time`, e.t);
+const elBox = e => get(`${e.id}.@box`, e.box);
 const brandColor = id => { const c = P.brand.colors.find(c => c.id === id); return c ? get('brand.color.' + id, c.v) : id; };
 const color = v => typeof v === 'string' && v.startsWith('brand.') ? brandColor(v.slice(6)) : v;
 const brandFont = id => get('brand.font.' + id, P.brand.fonts.find(f => f.id === id)?.v);
@@ -376,7 +392,7 @@ function markDirty(){
 }
 
 /* ================= playback ================= */
-function play(){ vid.play(); syncMusic(true); closePop(); setPlayIcon(true); }
+function play(){ if (ui.mode === 'edit') setMode('preview'); vid.play(); syncMusic(true); closePop(); setPlayIcon(true); }
 function pause(){ if (!P) return; vid.pause(); syncMusic(false); setPlayIcon(false); }
 const playing = () => !vid.paused;
 function setPlayIcon(on){ $('#playIco').innerHTML = on ? '<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/>' : '<path d="M4 2.5v11l9-5.5z" fill="currentColor"/>'; }
@@ -389,11 +405,36 @@ function seek(t){
   tick();
 }
 function vframe(){ if (!vid.paused) { if (ui.loop) { const s = sceneOf(ui.scene); if (vid.currentTime >= s.t[1] - 0.03) vid.currentTime = s.t[0]; } tick(); requestAnimationFrame(vframe); } }
-vid.addEventListener('play', () => { setPlayIcon(true); vframe(); });
-vid.addEventListener('pause', () => { setPlayIcon(false); tick(); });
-vid.addEventListener('seeked', tick);
-vid.addEventListener('loadedmetadata', () => { if (vid.currentTime < 0.1) vid.currentTime = 0.7; tick(); });
-vid.addEventListener('ended', () => setPlayIcon(false));
+function wireVideo(){
+  vid.addEventListener('play', () => { setPlayIcon(true); vframe(); });
+  vid.addEventListener('pause', () => { setPlayIcon(false); tick(); });
+  vid.addEventListener('seeked', tick);
+  vid.addEventListener('loadedmetadata', () => { if (vid.currentTime < 0.1) vid.currentTime = 0.7; tick(); });
+  vid.addEventListener('ended', () => setPlayIcon(false));
+}
+// Live projects ("live": "bundle.js" in reel.json) render the real composition in the page instead of the mp4,
+// so size and position edits show for real. This wraps it in the few <video> calls the player uses.
+let live = null;
+function liveVideo(api){
+  const on = {}, fire = n => (on[n] || []).forEach(f => f()), p = () => api.ref.current;
+  let rate = 1, t0 = 0;
+  const wait = setInterval(() => { if (!p()) return; clearInterval(wait);
+    ['play', 'pause', 'ended'].forEach(n => p().addEventListener(n, () => fire(n)));
+    p().seekTo(Math.round(t0 * P.fps)); fire('loadedmetadata'); }, 30);
+  return {
+    get currentTime(){ return p() ? p().getCurrentFrame() / P.fps : t0; },
+    set currentTime(t){ t0 = t; if (p()) { p().seekTo(Math.round(t * P.fps)); setTimeout(() => fire('seeked'), 30); } },
+    get paused(){ return !p()?.isPlaying(); },
+    play(){ p()?.play(); return Promise.resolve(); }, pause(){ p()?.pause(); },
+    get playbackRate(){ return rate; }, set playbackRate(r){ rate = r; api.setRate(r); },
+    addEventListener(n, f){ (on[n] ||= []).push(f); }, set src(v){}, videoWidth: 0,
+  };
+}
+let sentBoxes = '';
+function liveBoxes(){  // the edited boxes the composition needs: id -> [base box, new box]
+  const b = {}; for (const [k, v] of Object.entries(st.over)) if (k.endsWith('.@box')) { const e = elById(k.slice(0, -5)); if (e?.box) b[e.id] = [...e.box, ...v]; }
+  return b;
+}
 function tick(){
   const t = now(), s = sceneAt(t);
   if (s.id !== ui.scene && playing() && !ui.loop) { ui.scene = s.id; if (ui.sel && elById(ui.sel)?.s !== s.id) ui.sel = null; renderTL(); if (ui.tab === 'scene') renderPane(); }
@@ -413,7 +454,7 @@ new ResizeObserver(() => { placePH(); renderHots(); }).observe($('#viewer'));
 function boxOf(e){
   const t = now(), [a, b] = elTime(e);
   if (t < a || t > b) return null;
-  return e.box;
+  return elBox(e);
 }
 function hit(x, y){
   return sceneOf(ui.scene).els.map(e => ({e, b: boxOf({...e, s:ui.scene})})).filter(o => o.b && x >= o.b[0] && x <= o.b[0] + o.b[2] && y >= o.b[1] && y <= o.b[1] + o.b[3])
@@ -421,27 +462,85 @@ function hit(x, y){
 }
 function renderHots(){
   const t = now(), out = [];
-  for (const id of [ui.sel, ui.hover]) {
+  const ids = ui.mode === 'edit' ? [ui.sel, ...sceneOf(ui.scene).els.filter(e => e.box && e.id !== ui.sel).map(e => e.id)] : [ui.sel, ui.hover];
+  for (const id of ids) {
     if (!id || (id === ui.hover && id === ui.sel && out.length)) continue;
     const e = elById(id); if (!e || e.s !== ui.scene) continue;
     const b = boxOf(e); if (!b) continue;
-    out.push(`<div class="hot ${id === ui.sel ? '' : 'hover'} ${b[1] < 8 ? 'in' : ''}" style="left:${b[0]}%;top:${b[1]}%;width:${b[2]}%;height:${b[3]}%">${id === ui.sel ? `<span>${esc(e.label)}</span>` : ''}</div>`);
+    const mv = id === ui.sel && ui.mode === 'edit', sc = e.box && Math.round(b[2] / e.box[2] * 100);
+    out.push(`<div class="hot ${id === ui.sel ? '' : ui.mode === 'edit' && id !== ui.hover ? 'can' : 'hover'} ${b[1] < 8 ? 'in' : ''} ${mv ? 'mv' : ''}" style="left:${b[0]}%;top:${b[1]}%;width:${b[2]}%;height:${b[3]}%">${id === ui.sel ? `<span>${esc(e.label)}</span>` : ''}${mv ? ['nw','ne','sw','se'].map(h => `<i class="hd" data-h="${h}"></i>`).join('') + (sc !== 100 ? `<em>${sc}%</em>` : '') : ''}</div>`);
   }
   st.notes.forEach((n, i) => out.push(`<div class="pin ${Math.abs(n.t - t) > 0.9 || st.sent.includes(n.id) ? 'dim' : ''}" data-pin="${n.id}" style="left:${n.x}%;top:${n.y}%">${i + 1}</div>`));
   if (ui.mode === 'note') out.push(`<div class="chip left"><i></i>Click to add a note</div>`);
+  else if (ui.mode === 'edit') out.push(`<div class="chip left"><i style="background:var(--accent)"></i>Edit: drag to move, corners to resize · saves automatically</div>`);
   else if (pendingEdits()) out.push(`<div class="chip">${pendingEdits()} edit${pendingEdits() === 1 ? '' : 's'} waiting <button class="info" data-tip-id="pending">i</button></div>`);
   $('#hots').innerHTML = out.join('');
+  drawGhosts();
+}
+// Moved or resized elements: blur where it was, and draw that patch of the video at the new spot as a live preview.
+function drawGhosts(){
+  if (live) { const j = JSON.stringify(liveBoxes()); if (j !== sentBoxes) { sentBoxes = j; live.setBoxes(JSON.parse(j)); } return; }
+  const layer = $('#ghosts'), keep = new Set(), r = overlay.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  for (const e of sceneOf(ui.scene).els.map(e => ({...e, s:ui.scene}))) {
+    if (!e.box || !(`${e.id}.@box` in st.over)) continue;
+    const b = boxOf(e); if (!b) continue;
+    keep.add(e.id);
+    let g = layer.querySelector(`[data-g="${e.id}"]`);
+    if (!g) { g = document.createElement('div'); g.dataset.g = e.id; g.innerHTML = '<div class="was"></div><canvas class="ghost"></canvas>'; layer.appendChild(g); }
+    const [was, cv] = g.children, o = e.box, pos = (el, x) => Object.assign(el.style, {left:x[0] + '%', top:x[1] + '%', width:x[2] + '%', height:x[3] + '%'});
+    pos(was, o); pos(cv, b);
+    const w = Math.max(1, Math.round(b[2] / 100 * r.width * dpr)), h = Math.max(1, Math.round(b[3] / 100 * r.height * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const vw = vid.videoWidth, vh = vid.videoHeight;
+    if (vw) cv.getContext('2d').drawImage(vid, o[0] / 100 * vw, o[1] / 100 * vh, o[2] / 100 * vw, o[3] / 100 * vh, 0, 0, w, h);
+  }
+  [...layer.children].forEach(g => keep.has(g.dataset.g) || g.remove());
 }
 const pt = ev => { const r = overlay.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width * 100, (ev.clientY - r.top) / r.height * 100]; };
-overlay.addEventListener('mousemove', ev => { if (ui.mode !== 'edit' || ev.target.closest('.pop,.chip')) return; const h = hit(...pt(ev))?.id || null; if (h !== ui.hover) { ui.hover = h; renderHots(); } overlay.style.cursor = h ? 'pointer' : ''; });
+overlay.addEventListener('mousemove', ev => {
+  if (ui.mode === 'note' || drag || ev.target.closest('.pop,.chip')) return;
+  if (ui.mode === 'preview') { if (ui.hover) { ui.hover = null; renderHots(); } overlay.style.cursor = ''; return; }
+  const [x, y] = pt(ev), g = grab(x, y), h = hit(x, y)?.id || null;
+  if (h !== ui.hover) { ui.hover = h; renderHots(); }
+  overlay.style.cursor = g?.h ? (g.h === 'nw' || g.h === 'se' ? 'nwse-resize' : 'nesw-resize') : g ? 'move' : h ? 'move' : '';
+});
+// What's under the pointer on the selected element: a corner handle (h), or its body.
+function grab(x, y){
+  const sel = ui.sel && elById(ui.sel), sb = sel && sel.s === ui.scene && sel.box && boxOf(sel); if (!sb) return null;
+  const r = overlay.getBoundingClientRect(), near = (cx, cy) => Math.hypot((x - cx) / 100 * r.width, (y - cy) / 100 * r.height) < 14;
+  const h = [['nw', 0, 0], ['ne', 1, 0], ['sw', 0, 1], ['se', 1, 1]].find(([, i, j]) => near(sb[0] + sb[2] * i, sb[1] + sb[3] * j))?.[0];
+  return h || (x >= sb[0] && x <= sb[0] + sb[2] && y >= sb[1] && y <= sb[1] + sb[3]) ? {h, sel, sb} : null;
+}
 overlay.addEventListener('mouseleave', () => { ui.hover = null; renderHots(); });
+let drag = null;
+overlay.addEventListener('pointerdown', ev => {
+  if (ui.mode !== 'edit' || ev.button || ev.target.closest('.pop,.chip,[data-pin]')) return;
+  const [x, y] = pt(ev);
+  let g = grab(x, y);
+  if (!g) { const e = hit(x, y); if (!e?.box) { if (ui.sel) { ui.sel = null; renderPane(); renderHots(); } return; } selectEl(e.id, true); g = grab(x, y); if (!g) return; }
+  pause(); drag = {h:g.h, x, y, b:[...g.sb], e:g.sel}; overlay.setPointerCapture(ev.pointerId); ev.preventDefault();
+});
+overlay.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const [x, y] = pt(ev), [bx, by, bw, bh] = drag.b, r1 = v => Math.round(v * 10) / 10;
+  let nb;
+  if (!drag.h) nb = [bx + x - drag.x, by + y - drag.y, bw, bh];
+  else {  // corners scale uniformly, anchored at the opposite corner (it's a picture of the frame, so no stretching)
+    const L = drag.h[1] === 'w', T = drag.h[0] === 'n', ax = L ? bx + bw : bx, ay = T ? by + bh : by;
+    const s = Math.max(0.1, ((L ? ax - x : x - ax) / bw + (T ? ay - y : y - ay) / bh) / 2);
+    nb = [L ? ax - bw * s : ax, T ? ay - bh * s : ay, bw * s, bh * s];
+  }
+  set(`${drag.e.id}.@box`, nb.map(r1), drag.e.box); touchScene(drag.e.s); renderHots();
+});
+overlay.addEventListener('pointerup', () => { if (drag) { drag = null; renderPane(); changed(); } });
 overlay.addEventListener('click', ev => {
   if (ev.target.closest('.pop,.chip')) return;
+  if (ui.mode === 'edit' && !ev.target.closest('[data-pin]')) return;
   const pin = ev.target.closest('[data-pin]'); if (pin) return focusNote(+pin.dataset.pin);
   const [x, y] = pt(ev), h = hit(x, y);
   if (ui.mode === 'note' || ev.altKey) { pause(); ui.pop = {x, y, t:now(), el:h?.id || null}; return renderPop(); }
   if (ui.pop) return closePop();
-  if (h) { pause(); selectEl(h.id); } else playing() ? pause() : play();
+  playing() ? pause() : play();
 });
 function renderPop(){
   const p = ui.pop;
@@ -463,7 +562,7 @@ $('#popLayer').addEventListener('click', ev => {
 });
 $('#popLayer').addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) $('[data-act="add"]').click(); if (ev.key === 'Escape') closePop(); });
 function closePop(){ if (ui.pop) { ui.pop = null; renderPop(); } }
-function setMode(m){ ui.mode = m; $('#noteBtn').classList.toggle('on', m === 'note'); overlay.classList.toggle('note-mode', m === 'note'); renderHots(); }
+function setMode(m){ if (m === 'edit') pause(); ui.mode = m; ui.hover = null; [...$('#modes').children].forEach(b => b.classList.toggle('on', b.dataset.m === (m === 'edit' ? 'edit' : 'preview'))); $('#noteBtn').classList.toggle('on', m === 'note'); overlay.classList.toggle('note-mode', m === 'note'); overlay.classList.toggle('move-mode', m === 'edit'); closePop(); renderHots(); }
 
 /* ================= timeline ================= */
 const pct = t => (t / P.duration * 100) + '%';
@@ -513,7 +612,7 @@ function scenePane(){
 function elCard(e){
   return `<div class="el ${ui.sel === e.id ? 'sel' : ''} ${elEdited(e) ? 'edited' : ''}" data-id="${e.id}">
     <button class="elh" data-pick="${e.id}"><span class="ico"><svg viewBox="0 0 16 16">${elIcon(e)}</svg></span><b>${esc(e.label)}</b><span class="edot"></span><svg class="chev" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></button>
-    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${timingHTML(e)}</div>` : ''}
+    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${boxHTML(e)}${timingHTML(e)}</div>` : ''}
   </div>`;
 }
 function fieldHTML(e, k, p){
@@ -539,6 +638,13 @@ function listHTML(path, p, rows){
     return `<input type="${c.type === 'number' ? 'number' : 'text'}" ${at} value="${esc(r[c.k])}">`;
   }).join('')}<button class="x" data-del-row="${path}" data-i="${i}" aria-label="Remove row">×</button></div>`).join('')}
     <button class="add" data-add-row="${path}">+ Add row</button></div>`;
+}
+function boxHTML(e){
+  if (!e.box) return '';
+  const path = `${e.id}.@box`, b = elBox(e), ch = path in st.over, sc = Math.round(b[2] / e.box[2] * 100);
+  const n = (ix, l, v) => `<label class="fl" style="gap:4px">${l}<input type="number" step="${ix === 's' ? 5 : 0.5}" data-box="${e.id}" data-ix="${ix}" value="${v}"></label>`;
+  return `<div class="f ${ch ? 'changed' : ''}"><div class="fl">Size and position<button class="info" data-tip-id="box">i</button><span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>
+    <div class="row2" style="grid-template-columns:1fr 1fr 1fr">${n('s', 'Scale %', sc)}${n(0, 'X', b[0])}${n(1, 'Y', b[1])}</div></div>`;
 }
 function timingHTML(e){
   const path = `${e.id}.@time`, v = elTime(e), ch = path in st.over;
@@ -607,7 +713,7 @@ const baseOf = path => {
   if (path.startsWith('brand.font.')) return P.brand.fonts.find(f => f.id === path.slice(11)).v;
   if (path === 'brand.logo') return P.brand.logo;
   if (path.startsWith('audio.')) return P.audio[path.slice(6)];
-  const [id, k] = path.split('.'), e = elById(id); return k === '@time' ? e.t : e.props[k].v;
+  const [id, k] = path.split('.'), e = elById(id); return k === '@time' ? e.t : k === '@box' ? e.box : e.props[k].v;
 };
 const sidOf = path => elById(path.split('.')[0])?.s;
 $('#pane').addEventListener('input', ev => {
@@ -619,6 +725,9 @@ $('#pane').addEventListener('input', ev => {
   if (d.list) { const base = baseOf(d.list), rows = JSON.parse(JSON.stringify(get(d.list, base))); rows[+d.i][d.k] = t.type === 'number' ? Number(t.value) : t.value; set(d.list, rows, base); touchScene(sidOf(d.list));
     t.closest('.f,.scr')?.classList.toggle('changed', d.list in st.over); return changed(); }
   if (d.time) { const e = elById(d.time), v = [...elTime(e)]; v[+d.ix] = Math.round(Number(t.value) * 10) / 10; set(`${d.time}.@time`, v, e.t); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.time}.@time` in st.over); return changed(); }
+  if (d.box) { const e = elById(d.box), b = [...elBox(e)], v = Number(t.value); if (!t.value || isNaN(v)) return;
+    if (d.ix === 's') { const s = Math.max(10, v) / 100; b[2] = Math.round(e.box[2] * s * 10) / 10; b[3] = Math.round(e.box[3] * s * 10) / 10; } else b[+d.ix] = v;
+    set(`${d.box}.@box`, b, e.box); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.box}.@box` in st.over); return changed(); }
   if (d.bcolor) { set('brand.color.' + d.bcolor, t.value, baseOf('brand.color.' + d.bcolor)); t.closest('.bc').classList.toggle('changed', ('brand.color.' + d.bcolor) in st.over); t.nextElementSibling.querySelector('small').textContent = t.value.toUpperCase(); return changed(); }
   if (d.vol) { set(d.vol, Number(t.value), baseOf(d.vol)); if (music && d.vol === 'audio.musicVol') music.volume = Number(t.value); return changed(false); }
   if (d.noteText) { st.notes.find(n => n.id === +d.noteText).text = t.value; markDirty(); }
@@ -660,10 +769,10 @@ function openPicker(path, i, k, type){
 }
 
 /* ================= selection ================= */
-function selectEl(id){
+function selectEl(id, keepPlaying){
   const e = elById(id), [a, b] = elTime(e); ui.sel = id; ui.tab = 'scene';
   if (ui.scene !== e.s) { ui.scene = e.s; }
-  const t = now(); if (t < a || t > b) seek(Math.min(a + 0.8, b - 0.05));
+  const t = now(); if (!keepPlaying && (t < a || t > b)) seek(Math.min(a + 0.8, b - 0.05));
   renderTabs(); renderPane(); renderTL(); renderHots();
   document.querySelector(`.el[data-id="${id}"]`)?.scrollIntoView({block:'nearest', behavior:'smooth'});
 }
@@ -676,6 +785,7 @@ function describe(path, v){
   const nice = path.startsWith('brand.color.') ? `Style · ${P.brand.colors.find(c => c.id === path.slice(12)).name} color (used everywhere)` : path.startsWith('brand.font.') ? `Style · ${P.brand.fonts.find(f => f.id === path.slice(11)).name} font` : path === 'brand.logo' ? 'Style · Logo' : path === 'audio.music' ? 'Audio · Music track' : path === 'audio.musicVol' ? 'Audio · Music volume' : path === 'audio.sfxVol' ? 'Audio · Effects volume' : null;
   if (nice) return `- ${nice}: ${show(baseOf(path))} -> ${show(v)}`;
   const [id, k] = path.split('.'), e = elById(id);
+  if (k === '@box') return `- [${fmt(elTime(e)[0])} · ${e.s} · ${e.label}] size and position, [x, y, w, h] in % of frame${e.src ? ` (${e.src})` : ''}: ${JSON.stringify(e.box)} -> ${JSON.stringify(v)} (scale ${Math.round(v[2] / e.box[2] * 100)}%)`;
   return `- [${fmt(elTime(e)[0])} · ${e.s} · ${e.label}] ${k === '@time' ? 'timing (s)' : e.props[k].label}${e.src ? ` (${e.src})` : ''}: ${show(baseOf(path))} -> ${show(v)}`;
 }
 function prompt(){
@@ -708,6 +818,20 @@ $('#sendBtn').onclick = () => {
   };
 };
 
+/* ================= export: render a new mp4 with the edits baked in (live projects) ================= */
+$('#exportBtn').onclick = async () => {
+  const d = sheet(`<h3>Export MP4</h3><p id="exMsg">Starting the render…</p><div style="height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden"><i id="exBar" style="display:block;height:100%;width:0;background:var(--accent);transition:width .3s"></i></div><p class="mono" id="exLine" style="font-size:11px"></p><div class="row"><button class="btn ghost" data-close>Close</button></div>`);
+  let j = await fetch('export', {method:'POST', body:JSON.stringify({boxes:liveBoxes()})}).then(r => r.json());
+  while (j.state === 'running') {
+    d.querySelector('#exBar').style.width = j.pct + '%'; d.querySelector('#exMsg').textContent = `Rendering… ${j.pct}%. You can keep working.`; d.querySelector('#exLine').textContent = j.line || '';
+    await new Promise(r => setTimeout(r, 1000)); j = await fetch('export').then(r => r.json());
+  }
+  d.querySelector('#exBar').style.width = j.state === 'done' ? '100%' : '0';
+  d.querySelector('#exMsg').innerHTML = j.state === 'done' ? `Done. Saved as <b class="mono">${esc(j.out)}</b> · <a href="${esc(j.out)}" target="_blank">Open it</a>` : 'Export failed.';
+  d.querySelector('#exLine').textContent = j.state === 'done' ? '' : j.line || '';
+  if (j.state === 'done') toast('Exported');
+};
+
 /* ================= tooltips ================= */
 const tip = $('#tip');
 function showTip(el){ const text = el.dataset.tip || TIPS[el.dataset.tipId]; if (!text) return; tip.textContent = text; tip.hidden = false;
@@ -721,9 +845,10 @@ document.addEventListener('scroll', () => tip.hidden = true, true);
 
 /* ================= transport + keys ================= */
 $('#playBtn').onclick = () => playing() ? pause() : play();
-$('#noteBtn').onclick = () => setMode(ui.mode === 'note' ? 'edit' : 'note');
+$('#noteBtn').onclick = () => setMode(ui.mode === 'note' ? 'preview' : 'note');
+$('#modes').onclick = e => { const b = e.target.closest('[data-m]'); if (b) setMode(b.dataset.m); };
 $('#loopBtn').onclick = () => { ui.loop = !ui.loop; $('#loopBtn').classList.toggle('on', ui.loop); };
-$('#speed').onclick = e => { const b = e.target.closest('button'); if (!b) return; clock.rate = vid.playbackRate = +b.dataset.r; if (music) music.playbackRate = clock.rate; [...$('#speed').children].forEach(x => x.classList.toggle('on', x === b)); };
+$('#speed').onclick = e => { const b = e.target.closest('button'); if (!b) return; clock.rate = +b.dataset.r; vid.playbackRate = clock.rate; if (music) music.playbackRate = clock.rate; [...$('#speed').children].forEach(x => x.classList.toggle('on', x === b)); };
 const sIdx = () => P.scenes.findIndex(s => s.id === ui.scene);
 const goScene = i => { const s = P.scenes[clamp(i, 0, P.scenes.length - 1)]; pause(); ui.sel = null; seek(s.t[0] + 0.05); };
 document.addEventListener('keydown', ev => {
@@ -735,15 +860,23 @@ document.addEventListener('keydown', ev => {
   else if (ev.key === 'ArrowLeft') { ev.preventDefault(); pause(); seek(now() - (ev.shiftKey ? 1 : f)); }
   else if (ev.key === ']') goScene(sIdx() + 1);
   else if (ev.key === '[') goScene(sIdx() - 1);
-  else if (ev.key === 'n' || ev.key === 'N') setMode(ui.mode === 'note' ? 'edit' : 'note');
-  else if (ev.key === 'Escape') { closePop(); setMode('edit'); }
+  else if (ev.key === 'e' || ev.key === 'E') setMode(ui.mode === 'edit' ? 'preview' : 'edit');
+  else if (ev.key === 'n' || ev.key === 'N') setMode(ui.mode === 'note' ? 'preview' : 'note');
+  else if (ev.key === 'Escape') { closePop(); setMode('preview'); }
 });
 let toastT; function toast(msg){ document.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2200); }
 
 // Load reel.json, optionally jump to #t=12.5&el=id, then watch for the next version Claude renders.
 const hash = new URLSearchParams(location.hash.slice(1));
-fetch('reel.json', {cache:'no-store'}).then(r => r.json()).then(j => {
-  P = j; loadProject();
+fetch('reel.json', {cache:'no-store'}).then(r => r.json()).then(async j => {
+  P = j;
+  if (P.live) {
+    await new Promise((ok, no) => { const s = document.createElement('script'); s.src = P.live + '?v=' + (P.version || 1); s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    $('#vid').hidden = true; const el = document.createElement('div'); el.id = 'rp'; $('#viewer').insertBefore(el, overlay);
+    live = window.MotionOSLive(el); vid = liveVideo(live);
+  }
+  wireVideo(); loadProject();
+  $('#exportBtn').hidden = !P.export;
   if (hash.get('t')) vid.addEventListener('loadedmetadata', () => { seek(+hash.get('t')); if (hash.get('el') && elById(hash.get('el'))) selectEl(hash.get('el')); }, {once:true});
   setInterval(() => fetch('reel.json', {cache:'no-store'}).then(r => r.json()).then(n => {
     if ((n.version || 1) !== (P.version || 1)) { toast(`v${n.version} is ready. Loading it.`); setTimeout(() => location.reload(), 900); }

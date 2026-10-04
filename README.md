@@ -45,13 +45,17 @@ Claude asks only for what's missing, builds the video, checks its own render, an
 
 | To do this | Do this |
 |---|---|
-| Change a text, color, image or timing | Click the element in the frame (or in the Scene tab) and edit its fields |
+| Change a text, color, image or timing | Switch to **Edit** (E), click the element in the frame (or pick it in the Scene tab) and edit its fields |
+| Move or resize something | In **Edit**, drag the element to move it, drag a corner to resize. Switch back to **Preview** to play it |
+| Get a new video file with your changes | **Export MP4** (live projects only, see below). Saves to `exports/`, never overwrites |
 | Fix wording fast | Open the **Script** tab: every word in the video, in order |
 | Ask for something a field can't change (motion, pacing, layout) | Press **N**, click the spot in the frame, type the note |
 | Mark a scene as done | Set it to **Approved**. Claude leaves approved scenes alone |
 | Send your changes | **Send to Claude**, then **Copy prompt**, then paste it into Claude |
 
-Keys: Space play/pause, arrow keys step one frame (Shift for one second), `[` `]` jump between scenes, N toggles note mode. Edits save automatically in your browser.
+Keys: Space play/pause, E toggles Preview/Edit, arrow keys step one frame (Shift for one second), `[` `]` jump between scenes, N toggles note mode. Edits save automatically in your browser.
+
+**Live projects.** When Claude builds in Remotion, it can also ship a small live renderer (`"live"` in reel.json). The player then draws the real video in the page instead of the mp4, so moves and resizes show for real the moment you make them, and **Export MP4** bakes them into a new file without going back to Claude. Text, color and timing edits still go through Send to Claude. Without a live renderer, moves and resizes show as a preview and Claude applies them on the next render.
 
 ### What Claude receives
 

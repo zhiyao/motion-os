@@ -77,6 +77,15 @@ Rules:
 - Control types: `text`, `longtext`, `number`, `color` (a value like `brand.accent` links it to the palette), `media` (an asset id), `list` (with `cols`), `choice` (with `options`), and `motion` (free text, only you can change it).
 - Keep scene and element ids stable between versions. The player matches the user's edits by id.
 
+### Live projects (instant edits + Export MP4)
+
+For Remotion projects, give the player a live renderer so Edit mode changes show for real and the user can export without you:
+- Wrap each element with a `box` in a small `Ed` component that reads `boxes[id] = [x, y, w, h, nx, ny, nw, nh]` (reel.json box, then the edited box, % of frame) from a `boxes` prop and applies `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. No edit means render children untouched.
+- Add an entry that mounts `@remotion/player` and sets `window.MotionOSLive = el => ({ref, setBoxes, setRate})`. Bundle it with esbuild into the project folder and set `"live": "motionos-live.js"` in reel.json.
+- Add `"export": {"cwd": "<folder with node_modules>", "props": {...}, "cmd": "..."}`. The command gets `$PROPS` (JSON with the edits), `$RAW`, `$OUT` (`exports/<id>-<time>.mp4`, never overwritten) and `$PROJECT`. Example: `npx remotion render src/index.tsx Main "$OUT" --props="$PROPS"`.
+- `staticFile()` paths are served from the project's `public/` folder.
+- Elements with a `box` must be wrapped, or set `box` to null, otherwise dragging them does nothing.
+
 ## 5. Open the player
 
 Run this in the background (it keeps serving while you work):
@@ -87,12 +96,13 @@ node "$SKILL_DIR/player/serve.mjs" "<project>"
 
 It prints the URL (port 4321, or the next free one) and opens the browser. If a server for this project is already running, keep it; it serves new files live.
 
-Then tell the user, in two or three lines: click anything in the frame to edit it, press N to pin a note, the Script tab has every word, and when they're done, click **Send to Claude**, copy the prompt and paste it here.
+Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press N to pin a note, the Script tab has every word, and when they're done, click **Send to Claude**, copy the prompt and paste it here.
 
 ## 6. Apply feedback
 
 When the user pastes a prompt starting with "Motion OS feedback for":
 - **Edits** (before -> after): apply exactly, in `reel.json` and the code.
+- **Size and position** edits come as `[x, y, w, h]` in % of the frame plus a scale. Move and scale that element in the code to match, then update its `box` in `reel.json`.
 - **Notes**: each has a timestamp, scene, x/y position, and the element and source file it sits on. Grab that frame (`ffmpeg -ss 12.4 -i video.mp4 -frames:v 1 f.jpg`) and look at it before deciding what the note means.
 - **Links**: download them into `assets/`. Ask first if it isn't clearly the user's own file.
 - Leave scenes marked "approved" untouched.

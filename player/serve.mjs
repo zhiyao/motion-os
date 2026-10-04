@@ -6,8 +6,9 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {fileURLToPath} from 'node:url';
-import {exec} from 'node:child_process';
+import {exec, spawn} from 'node:child_process';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript', '.css': 'text/css',
@@ -46,10 +47,44 @@ const dir = path.resolve(args[0] || '.');
 const page = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
 if (!fs.existsSync(path.join(dir, 'reel.json'))) { console.error(`Motion OS: no reel.json in ${dir}`); process.exit(1); }
 
+// Export: reel.json "export": {"cwd": build folder, "cmd": shell command}. The command gets $PROPS (a JSON file with the
+// user's edits), $RAW (temp render path), $OUT (final mp4 in <project>/exports/) and $PROJECT. One export at a time.
+let job = {state: 'idle'};
+function startExport(props) {
+  const reel = JSON.parse(fs.readFileSync(path.join(dir, 'reel.json'), 'utf8')), ex = reel.export;
+  if (!ex) return {state: 'error', line: 'This project has no "export" in reel.json.'};
+  if (job.state === 'running') return job;
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+  fs.mkdirSync(path.join(dir, 'exports'), {recursive: true});
+  const out = path.join(dir, 'exports', `${reel.id}-${stamp}.mp4`), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'motionos-'));
+  const env = {...process.env, PROJECT: dir, OUT: out, RAW: path.join(tmp, 'raw.mp4'), PROPS: path.join(tmp, 'props.json')};
+  fs.writeFileSync(env.PROPS, JSON.stringify({...ex.props, ...props}));
+  job = {state: 'running', pct: 0, line: 'Starting', out: path.relative(dir, out)};
+  const p = spawn('sh', ['-c', ex.cmd], {cwd: ex.cwd || dir, env});
+  const onData = (d) => {
+    const text = String(d), m = [...text.matchAll(/(\d+)\/(\d+)/g)].pop();
+    if (m && +m[2] > 0) job.pct = Math.min(99, Math.round(+m[1] / +m[2] * 100));
+    const last = text.trim().split(/[\r\n]+/).pop(); if (last) job.line = last.slice(0, 200);
+  };
+  p.stdout.on('data', onData); p.stderr.on('data', onData);
+  p.on('close', (code) => { job = code === 0 ? {...job, state: 'done', pct: 100} : {...job, state: 'error'}; fs.rmSync(tmp, {recursive: true, force: true}); });
+  return job;
+}
+
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-  const file = url === '/' ? page : path.resolve(dir, '.' + url);
+  if (url === '/export') {
+    // Only our own page may start a render (blocks other websites posting to localhost).
+    if (req.method === 'POST' && req.headers.origin && !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(req.headers.origin)) return res.writeHead(403).end();
+    const send = (j) => res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify(j));
+    if (req.method !== 'POST') return send(job);
+    let body = ''; req.on('data', (c) => body += c);
+    return req.on('end', () => { try { send(startExport(JSON.parse(body || '{}'))); } catch (e) { send({state: 'error', line: e.message}); } });
+  }
+  let file = url === '/' ? page : path.resolve(dir, '.' + url);
   if (file !== page && !file.startsWith(dir + path.sep)) return res.writeHead(403).end('Forbidden');
+  // Remotion's staticFile() paths point at the site root; serve them from public/.
+  if (file !== page && !fs.existsSync(file) && fs.existsSync(path.join(dir, 'public', '.' + url))) file = path.join(dir, 'public', '.' + url);
   fs.stat(file, (err, stat) => {
     if (err || !stat.isFile()) return res.writeHead(404).end('Not found');
     const head = {'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store'};
