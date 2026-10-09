@@ -181,6 +181,8 @@ details.bub summary{cursor:pointer;display:grid;gap:4px} details.bub summary::-w
 .bh b{color:var(--ink)}
 .bst{margin-left:auto;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--panel-2);color:var(--mute);white-space:nowrap}
 .bst.picked{background:var(--pin-soft);color:var(--warn)} .bst.done{background:var(--ok-soft);color:var(--ok)}
+.bst.status-icon{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;flex-shrink:0;background:none}
+.bst.status-icon svg{width:15px;height:15px}
 .bh .go{border:0;background:none;color:var(--accent);padding:0;font-family:var(--mono)} .bh .x{border:0;background:none;color:var(--faint);font-size:15px;padding:0;line-height:1}
 .sum{font-size:12.5px} .bub ul,.bub ol{margin:0;padding-left:18px;font-size:12.5px;overflow-wrap:anywhere}
 .ql{display:flex;gap:6px;align-items:flex-start;font-size:12.5px}
@@ -1028,12 +1030,22 @@ function batchList(b){
     ...(b.trims || []).map(t => `Trim ${t.scene}: ${t.from}s → ${t.to}s`), ...(b.links || []).map(l => `Link ${l}`), ...(b.messages || []).map(m => `“${cut(m)}”`)];
   return li.length ? `<ul>${li.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
 }
+// Lucide Send, Inbox, and CircleCheck, embedded so badges work offline.
+function statusBadge(status){
+  const icons = {
+    sent: ['Sent', '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'],
+    picked: ['Picked up', '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>'],
+    done: ['Done', '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>']
+  };
+  const key = Object.hasOwn(icons, status) ? status : 'sent', [label, paths] = icons[key];
+  return `<span class="bst status-icon ${key}" title="${label}" role="img" aria-label="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg></span>`;
+}
 function entryHTML(e){
   if (e.role === 'agent') return `<div class="bub agent"><div class="bh"><b>Agent</b><span class="mono">${tm(e.at)}</span></div><div class="md">${md(e.text)}</div></div>`;
   // typed messages read like chat; everything else is summarised, with the full list on expand
   const b = e.batch || {}, msgs = b.messages || [], parts = [['change', b.edits], ['note', b.notes], ['trim', b.trims], ['link', b.links]].filter(([, a]) => a?.length).map(([w, a]) => `${a.length} ${w}${a.length > 1 ? 's' : ''}`);
   const rest = {...b, messages: []};
-  return `<details class="bub me"><summary><span class="bh"><b>You</b><span class="mono">${tm(e.at)}</span><span class="bst ${esc(e.status || 'sent')}">${({picked: 'Picked up', done: 'Done'})[e.status] || 'Sent'}</span></span>${msgs.map(m => `<div class="md">${md(m)}</div>`).join('')}${parts.length || !msgs.length ? `<span class="sum">${esc(parts.join(', ') || 'Empty send')}</span>` : ''}</summary>${batchList(rest)}</details>`;
+  return `<details class="bub me"><summary><span class="bh"><b>You</b><span class="mono">${tm(e.at)}</span>${statusBadge(e.status)}</span>${msgs.map(m => `<div class="md">${md(m)}</div>`).join('')}${parts.length || !msgs.length ? `<span class="sum">${esc(parts.join(', ') || 'Empty send')}</span>` : ''}</summary>${batchList(rest)}</details>`;
 }
 // The transcript and the queue are separate containers: a refresh rewrites #convoT only, so typing in #convoQ is never lost.
 function renderTranscript(entries, presence, waiting){
