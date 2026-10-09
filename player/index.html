@@ -205,6 +205,7 @@ details.bub summary{cursor:pointer;display:grid;gap:4px} details.bub summary::-w
 .status{display:inline-flex;border:1px solid var(--line-2);border-radius:99px;overflow:hidden}
 .status button{border:0;background:none;padding:3px 9px;font-size:11.5px;font-weight:500;color:var(--mute);display:flex;gap:5px;align-items:center}
 .status button.on{background:var(--panel-2);color:var(--ink)}
+.scene-approval{display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 
 .el{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .el.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -781,12 +782,14 @@ function renderAll(){ renderTabs(); renderPane(); renderTL(); renderHots(); rend
 function scenePane(){
   const s = sceneOf(ui.scene), stv = st.status[s.id];
   return `<div class="pane">
-    <div class="ph2"><h2>${esc(s.name)}</h2>
-      <div class="status" data-status>${[['review','Review'],['changes','Fix'],['approved','Approved']].map(([v, l]) => `<button class="${stv === v ? 'on' : ''}" data-v="${v}"><span class="sd ${v}"></span>${l}</button>`).join('')}</div>
-      <button class="info" data-tip-id="status">i</button></div>
+    <div class="ph2"><h2>${esc(s.name)}</h2></div>
     ${sceneLen(s) < s.t[1] - s.t[0] - 1e-6 ? `<div class="f changed"><div class="fl">Length ${(s.t[1] - s.t[0]).toFixed(1)}s → ${sceneLen(s).toFixed(1)}s<button class="info" data-tip-id="trim">i</button><span class="sp"></span><button class="undo" data-undo="${s.id}.@len">Undo</button></div></div>` : ''}
     <div class="lbl">On screen <button class="info" data-tip-id="scene">i</button></div>
     ${s.els.map(e => elCard({...e, s:s.id})).join('')}
+    <div class="scene-approval">
+      <div class="status" data-status>${[['review','Review'],['changes','Fix'],['approved','Approved']].map(([v, l]) => `<button class="${stv === v ? 'on' : ''}" data-v="${v}"><span class="sd ${v}"></span>${l}</button>`).join('')}</div>
+      <button class="info" data-tip-id="status">i</button>
+    </div>
   </div>`;
 }
 function elCard(e){
