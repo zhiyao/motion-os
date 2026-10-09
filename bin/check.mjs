@@ -8,9 +8,11 @@ export function checkReelData(r, {exists = () => true, mp4Duration = null} = {})
   for (const k of ['id', 'version', 'src', 'fps', 'duration', 'scenes']) if (r[k] == null) err('reel', `missing "${k}"`);
   if (!Array.isArray(r.scenes)) return P;
   const tol = 1 / (r.fps || 30) + 1e-6, ids = new Set(), seen = id => { if (ids.has(id)) err(id, 'duplicate id'); ids.add(id); };
+  const span = t => Array.isArray(t) && t.length === 2 && t.every(n => typeof n === 'number');
   r.scenes.forEach((s, i) => {
     seen(s.id);
-    const prev = r.scenes[i - 1];
+    if (!span(s.t)) return err(s.id ?? `scene ${i + 1}`, 't must be [start, end] in seconds');
+    const prev = span(r.scenes[i - 1]?.t) ? r.scenes[i - 1] : null;
     if (i === 0 && Math.abs(s.t[0]) > tol) err(s.id, `starts at ${s.t[0]}s, not 0`);
     if (prev && s.t[0] - prev.t[1] > tol) err(s.id, `gap after ${prev.id} (${prev.t[1]}s to ${s.t[0]}s)`);
     if (prev && prev.t[1] - s.t[0] > tol) err(s.id, `overlaps ${prev.id} (starts ${s.t[0]}s, ${prev.id} ends ${prev.t[1]}s)`);
@@ -30,13 +32,14 @@ export function checkReelData(r, {exists = () => true, mp4Duration = null} = {})
         }
       }
       for (const [k, p] of Object.entries(e.props || {}))
-        if (p.type === 'media' && typeof p.v === 'string' && p.v.includes('/') && !exists(p.v)) err(e.id, `${k}: file ${p.v} not found`);
+        if (!p || typeof p !== 'object') err(e.id, `prop ${k} is empty`);
+        else if (p.type === 'media' && typeof p.v === 'string' && p.v.includes('/') && !exists(p.v)) err(e.id, `${k}: file ${p.v} not found`);
     }
   });
   const last = r.scenes[r.scenes.length - 1];
-  if (last && r.duration != null && Math.abs(last.t[1] - r.duration) > tol) err(last.id, `ends at ${last.t[1]}s but duration is ${r.duration}s`);
+  if (last && span(last.t) && r.duration != null && Math.abs(last.t[1] - r.duration) > tol) err(last.id, `ends at ${last.t[1]}s but duration is ${r.duration}s`);
   if (r.src && !exists(r.src)) err('reel', `src ${r.src} not found`);
-  for (const a of r.assets || []) if (a.id.includes('/') && !exists(a.id)) err('assets', `${a.id} not found`);
+  for (const a of r.assets || []) if (typeof a?.id !== 'string') err('assets', 'an asset has no id'); else if (a.id.includes('/') && !exists(a.id)) err('assets', `${a.id} not found`);
   if (mp4Duration != null && r.duration != null && Math.abs(mp4Duration - r.duration) > 0.1) warn('reel', `duration ${r.duration}s but ${r.src} is ${mp4Duration.toFixed(2)}s`);
   if (r.live && !exists(r.live)) warn('reel', `live bundle ${r.live} not found`);
   if (r.export && !r.export.cmd) warn('reel', 'export has no cmd');

@@ -421,6 +421,16 @@ let music = null;                 // <audio> for an uploaded music track
 
 // Edits and notes live in this browser, per project. When a new version loads, what was already sent is cleared.
 const KEY = () => 'motionos:' + P.id;
+// Does an edit path still point at something in this reel? A new version can remove elements, scenes or brand entries.
+function pathExists(k){
+  if (k.startsWith('brand.color.')) return !!P.brand?.colors?.some(c => c.id === k.slice(12));
+  if (k.startsWith('brand.font.')) return !!P.brand?.fonts?.some(f => f.id === k.slice(11));
+  if (k === 'brand.logo' || k.startsWith('audio.')) return true;
+  const [id, f = ''] = k.split('.');
+  if (f === '@len') return !!sceneOf(id);
+  const e = elById(id); return !!e && (f.startsWith('@') || f in e.props);
+}
+function pruneMissing(){ for (const k of Object.keys(st.over)) if (!pathExists(k)) delete st.over[k]; st.notes.forEach(n => { if (n.el && !elById(n.el)) n.el = null; }); }
 // A move on an element animated by reel.json keys only applies while that animation is removed. A move left over from before
 // the element got its keys is unsent work (sent moves were already dropped by keepAfterNewVersion), so keep it and make the
 // removal explicit: the queue shows "remove the animation" + the move, and Undo brings the new animation back.
@@ -438,6 +448,7 @@ function loadProject(){
     st.notes = st.notes.filter(n => !st.sent.includes(n.id)); st.links = st.links.filter(l => !l.sent);
     st.sent = []; st.sentSnap = {}; st.ver = ver;
   }
+  pruneMissing();
   P.scenes.forEach(s => st.status[s.id] ??= 'review');
   ui = {...ui, scene:P.scenes[0].id, sel:null, pop:null, selNote:null};
   $('#projTitle').textContent = P.title; $('#projVer').textContent = 'v' + ver; document.title = P.title + ' · Motion OS';
@@ -985,7 +996,7 @@ function renderPresence(){
 }
 function renderQueue(){
   if (!P || !st) return;
-  const fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v), over = Object.entries(st.over).filter(fresh);
+  const fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v), over = Object.entries(st.over).filter(fresh).filter(([k]) => pathExists(k));
   const edits = over.filter(([k]) => !k.endsWith('.@len')), trims = over.filter(([k]) => k.endsWith('.@len')), lab = convo.sending ? 'Sending' : 'Queued', out = [];
   if (edits.length) out.push(`<div class="bub q"><div class="bh"><b>${edits.length} change${edits.length > 1 ? 's' : ''}</b><span class="bst">${lab}</span></div>${edits.map(([k, v]) => { const r = editRow(k, v);
     return `<div class="ql"><button class="qt" data-qsel="${esc(k.split('.')[0])}">${esc(r.element)} · ${esc(r.field)}: ${esc(cut(r.from))} → ${esc(cut(r.to))}</button><button class="undo" data-undo="${esc(k)}">Undo</button></div>`; }).join('')}</div>`);
@@ -1041,7 +1052,7 @@ function editRow(path, v){
   return {...row, field: e.props[k].type === 'motion' ? 'motion' : e.props[k].label, from: show(baseOf(path)), to: show(v)};
 }
 function feedback(){
-  const fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v), over = Object.entries(st.over).filter(fresh);
+  const fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v), over = Object.entries(st.over).filter(fresh).filter(([k]) => pathExists(k));
   return {title: P.title, id: P.id, version: P.version || 1, path: P.path || '', fps: P.fps, duration: P.duration,
     edits: over.filter(([k]) => !k.endsWith('.@len')).map(([k, v]) => editRow(k, v)),
     notes: openNotes().map((n, i) => { const e = n.el && elById(n.el), s = sceneAt(n.t); return {n: i + 1, t: n.t, scene: `${s.id} ${s.name}`, x: n.x, y: n.y, on: e ? e.label : '', src: e?.src || '', text: n.text}; }),
@@ -1277,6 +1288,11 @@ async function selftest(){
     window.fetch = (u, o) => o?.method === 'POST' ? new Promise(r => release = () => r({ok: true, json: async () => ({})})) : Promise.resolve({ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})});
     try { const sending = sendFeedback(); st.messages.push({id: 8, text: 'second'}); st.notes.push({id: 777, t: 1, x: 1, y: 1, el: null, text: 'late'}); release(); await sending; } finally { window.fetch = rf2; }
     eq([st.messages.map(m => m.id), openNotes().some(n => n.id === 777)], [[8], true], 'things added during a send stay queued');
+    // edits pointing at elements or scenes a new version removed are dropped, so the queue and load never crash
+    st.over = {'gone-el.text': 'x', 'S99.@len': 3, [`${s0.id}.@len`]: L0, 'brand.color.zzz': '#fff'}; st.notes = [{id: 901, t: 1, x: 1, y: 1, el: 'gone-el', text: 'n'}];
+    pruneMissing();
+    eq([Object.keys(st.over), st.notes[0].el], [[`${s0.id}.@len`], null], 'edits on removed elements, scenes and brand entries are dropped');
+    st.over = {'gone-el.text': 'x'}; let threw = false; try { renderQueue(); } catch (e) { threw = true; } eq(threw, false, 'the queue skips an edit on a removed element');
   } finally { vid = realVid; st.over = JSON.parse(saved); Object.assign(st, JSON.parse(savedQ)); markDirty(); renderAll(); }
   return 'selftest ok';
 }

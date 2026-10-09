@@ -45,6 +45,9 @@ export async function selftest(){
   r = good(); r.scenes[0].els[0].keys = [1, 2, 3]; eq(msgs(r), ['error a: keys must be 1 or 2 {t, box: [x, y, w, h]} entries'], 'bad keys');
   r = good(); r.scenes[0].els[0].keys = [{t: 9, box: [10, 10, 50, 50]}]; eq(msgs(r), ['error a: a keyframe is outside its time 0-4s'], 'key outside the element time');
   r = good(); r.scenes[1].els[0].keys = [{t: 5, box: [10, 10, 50, 50]}]; eq(msgs(r), ['error b: keys need a box'], 'keys on an element without a box');
+  r = good(); delete r.scenes[1].t; eq(msgs(r).includes('error S2: t must be [start, end] in seconds'), true, 'scene without t is reported, not thrown');
+  r = good(); r.assets = [{name: 'x'}]; eq(msgs(r), ['error assets: an asset has no id'], 'asset without id');
+  r = good(); r.scenes[0].els[0].props = {img: null}; eq(msgs(r), ['error a: prop img is empty'], 'null prop');
   r = good(); r.live = 'live.js'; r.export = {}; eq(msgs(r, {exists: p => p !== 'live.js'}), ['warn reel: live bundle live.js not found', 'warn reel: export has no cmd'], 'live and export');
 
   // store: registry and queue, in a temp home and project
@@ -134,6 +137,8 @@ export async function selftest(){
     await fetch(base + '/ack', {method: 'POST', body: JSON.stringify({ids: got.batches.map(b => b.id)})});
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: base}, body: 'x'.repeat(1100000)})).status, 413, 'oversized body refused');
     eq(await raw({host: 'evil.example'}, '/transcript'), 403, 'transcript is local-only');
+    eq([await raw({host: 'evil.example'}, '/.motion-os/inbox.json'), await raw({host: 'evil.example'}, '/reel.json')], [403, 403], 'every path refuses a foreign Host');
+    eq((await fetch(base + '/reel.json')).status, 200, 'the player still loads its files');
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'https://evil.example'}, body: '{}'})).status, 403, 'other origins refused');
   } finally { srv.kill(); }
   await new Promise(r => setTimeout(r, 300));

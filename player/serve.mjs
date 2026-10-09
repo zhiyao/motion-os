@@ -100,7 +100,8 @@ const presence = () => waiters.some(r => !r.writableEnded && !r.destroyed) ? 'li
 
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-  if (['/feedback', '/poll', '/ack', '/export', '/reply', '/transcript'].includes(url) && !localOnly(req)) return res.writeHead(403).end();
+  // Everything here is local: the page, the project's files (incl. .motion-os/ transcript and queue) and the feedback endpoints.
+  if (!localOnly(req)) return res.writeHead(403).end();
   if (url === '/ack') return readBody(req, res, body => { try { ackQueue(dir, JSON.parse(body || '{}').ids || []); res.writeHead(200, {'Content-Type': 'application/json'}).end('{"ok":true}'); } catch { res.writeHead(400).end(); } });
   if (url === '/reply') return readBody(req, res, body => {
     let text = '', ids = null; try { const j = JSON.parse(body || '{}'); text = String(j.text || '').trim(); ids = Array.isArray(j.ids) ? j.ids : null; } catch {}
