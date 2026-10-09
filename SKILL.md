@@ -1,13 +1,15 @@
 ---
 name: motion-os
-description: Build motion graphics and launch videos in code, then open them in Motion OS, a local scene-by-scene review player where the user edits copy, pins notes on the frame, and sends one prompt back. Use when the user asks for a motion graphic, launch video, explainer, product video or animated ad, says "motion os", or pastes feedback that starts with "Motion OS feedback for".
+description: Build motion graphics and launch videos in code, then open them in Motion OS, a local scene-by-scene review player where the user edits copy, pins notes on the frame, and sends feedback back. Use when the user asks for a motion graphic, launch video, explainer, product video or animated ad, says "motion os", or wants feedback from an open Motion OS player.
 ---
 
 # Motion OS
 
-Motion OS is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Claude**, and pastes the prompt back to you. You apply it, re-render, bump the version, and the player reloads itself.
+Motion OS is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Agent**, and you pick it up with `motion-os-axi poll`. You apply it, re-render, bump the version, and the player reloads itself.
 
 `SKILL_DIR` below means the folder this file is in (the player is at `SKILL_DIR/player/`).
+
+Drive it with the `motion-os-axi` CLI (an [AXI](https://axi.md)): `node "$SKILL_DIR/bin/motion-os-axi.mjs"`. Run it with no arguments for running players; every command ends with next steps, and `--help` works everywhere. It needs only Node 18+ (ffmpeg for `frame`). Below, `motion-os-axi` means that command.
 
 ## 1. Set up the project
 
@@ -35,7 +37,7 @@ npx remotion render src/index.ts Main video.mp4 --codec=h264 --crf=18
 ffmpeg -v error -y -i video.mp4 -vf "fps=1,scale=320:-1,tile=6x6" -frames:v 1 sheet.jpg
 ```
 
-Read the contact sheet before showing anything. Check text is readable, nothing overlaps faces or important UI, and audio levels are sane. Fix obvious problems first.
+Read the contact sheet before showing anything. Check text is readable, nothing overlaps faces or important UI, and audio levels are sane. Fix obvious problems first. Then run `motion-os-axi check <project>` and fix any errors before showing it.
 
 ## 4. Write reel.json
 
@@ -46,7 +48,7 @@ See `examples/qbot-tag/reel.json` for a full example.
   "id": "acme-launch",            // stable, used to store the user's edits
   "title": "Acme launch",
   "version": 1,                   // bump on every render; the player reloads when it changes
-  "path": "/abs/path/to/project", // shown in the prompt so you know where to work
+  "path": "/abs/path/to/project", // shown in poll output so you know where to work
   "src": "video.mp4",
   "w": 1920, "h": 1080, "fps": 30, "duration": 32.0,
   "reference": "Linear launch video",
@@ -74,13 +76,20 @@ See `examples/qbot-tag/reel.json` for a full example.
 Rules:
 - One scene per story beat. Scene `t` values come from the actual render and cover 0 to `duration` with no gaps.
 - An element is anything a viewer might want to change. `t` is when it's visible. `box` is `[x, y, w, h]` in percent of the frame (use `null` for voiceover or audio). `src` is the file or `file:line` that draws it.
+- An element whose position/size animates gets `keys`: `[{"t": 5.4, "box": [x, y, w, h]}, {"t": 7.8, "box": [...]}]` (render-time seconds, 1 or 2, ease in-out between, held before and after). `box` stays its resting box. The player shows and edits these as keyframes.
 - Control types: `text`, `longtext`, `number`, `color` (a value like `brand.accent` links it to the palette), `media` (an asset id), `list` (with `cols`), `choice` (with `options`), and `motion` (free text, only you can change it).
 - Keep scene and element ids stable between versions. The player matches the user's edits by id.
 
 ### Live projects (instant edits + Export MP4)
 
 For Remotion projects, give the player a live renderer so Edit mode changes show for real and the user can export without you:
-- Wrap each element with a `box` in a small `Ed` component that reads `boxes[id] = [x, y, w, h, nx, ny, nw, nh]` (reel.json box, then the edited box, % of frame) from a `boxes` prop and applies `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. No edit means render children untouched.
+- Wrap each element with a `box` in a small `Ed` component. The `boxes` prop maps element id to one of:
+  - `[x, y, w, h, nx, ny, nw, nh]`: a move (reel.json box, then the edited box, % of frame).
+  - `{"box": [x, y, w, h], "keys": [{"t": 12.0, "box": [nx, ny, nw, nh]}, ...]}`: keyframes, `t` in absolute video seconds. Hold the first box before the first key and the last after the last; ease in-out (`p < .5 ? 4p³ : 1 - (-2p + 2)³ / 2`) between.
+  - no entry: the element's `keys` from reel.json, if any (bundled from reel.json, so rebuild the bundle when they change). An entry replaces them (`keys: []` = no animation). Don't also animate that element's box in scene code, or the motion is applied twice.
+
+  Work out `[nx, ny, nw, nh]` for the current frame, then apply `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. `useCurrentFrame()` is relative to the scene's `<Sequence>`, so give `Ed` the scene's start frame (a context set where the Sequence is mounted) and use `t = (sceneFrom + frame) / fps`. No edit means render children untouched.
+- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSLive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
 - Add an entry that mounts `@remotion/player` and sets `window.MotionOSLive = el => ({ref, setBoxes, setRate})`. Bundle it with esbuild into the project folder and set `"live": "motionos-live.js"` in reel.json.
 - Add `"export": {"cwd": "<folder with node_modules>", "props": {...}, "cmd": "..."}`. The command gets `$PROPS` (JSON with the edits), `$RAW`, `$OUT` (`exports/<id>-<time>.mp4`, never overwritten) and `$PROJECT`. Example: `npx remotion render src/index.tsx Main "$OUT" --props="$PROPS"`.
 - `staticFile()` paths are served from the project's `public/` folder.
@@ -88,23 +97,25 @@ For Remotion projects, give the player a live renderer so Edit mode changes show
 
 ## 5. Open the player
 
-Run this in the background (it keeps serving while you work):
+Run (the player keeps running in the background while you work):
 
 ```bash
-node "$SKILL_DIR/player/serve.mjs" "<project>"
+node "$SKILL_DIR/bin/motion-os-axi.mjs" open "<project>"
 ```
 
-It prints the URL (port 4321, or the next free one) and opens the browser. If a server for this project is already running, keep it; it serves new files live.
+It starts the player (or reuses the one already serving this project), opens the browser and prints the URL. Motion OS keeps its feedback queue, frames and log in `<project>/.motion-os/`; add that to the project's `.gitignore`.
 
-Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press N to pin a note, the Script tab has every word, and when they're done, click **Send to Claude**, copy the prompt and paste it here.
+Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press K at two moments to animate an element between them, drag a scene's end on the timeline to shorten it, press N to pin a note (notes appear in the Conversation pane on the right, where they can also type messages), the Script tab has every word, and when they're done, click **Send to Agent** at the bottom of the Conversation pane.
 
 ## 6. Apply feedback
 
-When the user pastes a prompt starting with "Motion OS feedback for":
+Run `motion-os-axi poll <project>` and leave it running until it returns (in the foreground, or as a background job your harness tracks and wakes you for; if it's interrupted, run it again, feedback stays queued). It prints the user's messages, edits, notes, trims, links and scene statuses as rows; times are render time in seconds. Then:
 - **Edits** (before -> after): apply exactly, in `reel.json` and the code.
 - **Size and position** edits come as `[x, y, w, h]` in % of the frame plus a scale. Move and scale that element in the code to match, then update its `box` in `reel.json`.
-- **Notes**: each has a timestamp, scene, x/y position, and the element and source file it sits on. Grab that frame (`ffmpeg -ss 12.4 -i video.mp4 -frames:v 1 f.jpg`) and look at it before deciding what the note means.
+- **Keyframes** come as an edit row with field `keyframes`: `from` is the current keys, `to` like `12s [x y w h] -> 14s [x y w h] (ease in-out)` or `none (remove the animation)`. Live projects: set (or remove) the element's `keys` in reel.json; `Ed` animates them, no motion code. `Ed` reads reel.json at build time, so rebuild the live bundle (and re-render) after changing `keys`, or the player previews the old motion. mp4 projects: implement the motion in code (ease in-out, held before and after, on top of its existing motion) and record the same `keys` in reel.json. Keep `box` as the resting box. Once the new version loads, the player drops the sent keyframe edit and shows the reel.json `keys`.
+- **Trims** come as `trims` rows (`scene,name,from,to,drop,shift`, e.g. `S2,Reveal,4,3,14.00-15.00s,-1.00s`). Apply them last: all other times in `poll` output are in the current render. Then cut the scene in code (its `Sequence` duration or equivalent; don't speed it up), set its `t[1]` in `reel.json`, shift every later scene's `t`, their elements' `t` and keyframe/note times by the cut, clamp elements that ran past the new end, and update `duration`.
+- **Notes**: each has a timestamp, scene, x/y position, and the element and source file it sits on. Grab that frame (`motion-os-axi frame <project> <t>`) and look at it before deciding what the note means.
 - **Links**: download them into `assets/`. Ask first if it isn't clearly the user's own file.
 - Leave scenes marked "approved" untouched.
-- Re-render, check the contact sheet, update `reel.json` (timings, copy) and set `version` to the number the prompt asks for. The player notices within about 3 seconds and reloads.
-- Reply with a short list of what changed and anything you couldn't do.
+- Re-render, check the contact sheet, update `reel.json` (timings, copy) and set `version` to the number `poll` asks for, and run `motion-os-axi check <project>`. The player notices within about 3 seconds and reloads.
+- Finish with `motion-os-axi poll <project> --reply "<short summary of what changed and anything you couldn't do>"`. The reply shows in the user's Conversation pane, and the same command waits for their next Send.
