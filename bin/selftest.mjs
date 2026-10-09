@@ -95,6 +95,9 @@ export async function selftest(){
   const proj2 = path.join(tmp, 'proj2'); fs.mkdirSync(proj2); setDelivered(proj2, ['x']); addPlayer(proj2, 1);   // port 1: nothing listening
   try { execFileSync(process.execPath, [cli, 'poll', proj2, '--reply', 'hi', '--timeout', '1'], {env: process.env, stdio: 'pipe'}); } catch {}
   removePlayer(proj2); eq(takeDelivered(proj2), ['x'], 'a failed reply keeps the ids');
+  const proj3 = path.join(tmp, 'proj3'); fs.mkdirSync(proj3); fs.writeFileSync(path.join(proj3, 'reel.json'), JSON.stringify({id: 'x'}));
+  let out3 = ''; try { execFileSync(process.execPath, [cli, 'frame', proj3, '1'], {env: process.env, stdio: 'pipe'}); } catch (e) { out3 = String(e.stdout); }
+  eq(out3.startsWith('error: no_src'), true, 'frame without src is a TOON error');
   fs.rmSync(path.join(proj, '.motion-os', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
 
   // registry: players starting at the same moment must not overwrite each other
@@ -144,6 +147,7 @@ export async function selftest(){
     eq(await raw({host: 'evil.example'}, '/transcript'), 403, 'transcript is local-only');
     eq([await raw({host: 'evil.example'}, '/.motion-os/inbox.json'), await raw({host: 'evil.example'}, '/reel.json')], [403, 403], 'every path refuses a foreign Host');
     eq((await fetch(base + '/reel.json')).status, 200, 'the player still loads its files');
+    eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'http://localhost:1'}, body: '{}'})).status, 403, 'a page on another localhost port is refused');
     eq([await raw({'sec-fetch-site': 'cross-site'}, '/'), await raw({'sec-fetch-site': 'cross-site'}, '/feedback')], [200, 403], 'a link from another site opens the page; endpoints stay local');
     eq([await raw({}, '/%'), (await fetch(base + '/reel.json')).status], [400, 200], 'a malformed path is a 400 and the server stays up');
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'https://evil.example'}, body: '{}'})).status, 403, 'other origins refused');

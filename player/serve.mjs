@@ -86,7 +86,8 @@ function deliver(){
   }
 }
 setInterval(deliver, 5000).unref();   // re-offers batches whose lease ran out
-const sameOrigin = req => !req.headers.origin || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(req.headers.origin);
+// Only our own page (same port) may POST; other pages on localhost are other sites.
+const sameOrigin = req => { const o = req.headers.origin; if (!o) return true; const m = /^http:\/\/(localhost|127\.0\.0\.1):(\d+)$/.exec(o); return !!m && Number(m[2]) === port; };
 // The feedback endpoints change state, so a page on another site (or a DNS-rebinding hostname) must not reach them.
 const hostOk = req => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '');   // blocks DNS-rebinding hostnames
 const localOnly = req => hostOk(req) && req.headers['sec-fetch-site'] !== 'cross-site' && sameOrigin(req);

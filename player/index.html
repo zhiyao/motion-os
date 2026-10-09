@@ -692,6 +692,9 @@ let trimming = null;  // {sid, E, O, D0} while dragging a scene's end; the scale
 const tlDur = () => trimming ? trimming.D0 : edDur();
 const epct = t => (t / tlDur() * 100) + '%';   // edited time -> % of the timeline
 const pct = t => epct(toEd(t));                 // render time -> % of the timeline
+// Store a scene's trimmed length, or nothing when it is (to the frame) the full length; reel times like 4.5-9.2 aren't exact floats.
+function setTrim(s, L){ const O = s.t[1] - s.t[0]; L = fps1(L); if (L >= O - 0.5 / P.fps) delete st.over[`${s.id}.@len`]; else st.over[`${s.id}.@len`] = L; markDirty(); }
+const realTrim = k => { const s = sceneOf(k.split('.')[0]); return !!s && sceneLen(s) < s.t[1] - s.t[0] - 0.5 / P.fps; };
 const canTrim = () => !live || !!live.setScenes;
 function renderTL(){
   let beats = '';
@@ -718,7 +721,7 @@ $('#tl').addEventListener('pointerdown', ev => {
 });
 window.addEventListener('pointermove', ev => {
   if (trimming) { const r = $('#tl .trk').getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * trimming.D0, s = sceneOf(trimming.sid);
-    set(`${s.id}.@len`, fps1(clamp(x - trimming.E, Math.min(0.5, trimming.O), trimming.O)), trimming.O); renderTL(); return; }
+    setTrim(s, clamp(x - trimming.E, Math.min(0.5, trimming.O), trimming.O)); renderTL(); return; }
   if (scrubbing) scrubTo(ev);
 });
 window.addEventListener('pointerup', () => { scrubbing = false;
@@ -911,7 +914,12 @@ $('#pane').addEventListener('change', ev => {
   const t = ev.target, d = t.dataset;
   if (t.tagName === 'SELECT') return t.dispatchEvent(new Event('input', {bubbles:true}));
   if (d.key && d.ix === 't') { const e = elById(d.key), keys = elKeys(e).map(k => ({...k})), v = Number(t.value); if (!t.value || isNaN(v)) return renderPane();
-    keys[+d.i].t = fps1(toSrc(clamp(v, 0, edDur()))); setKeys(e, keys); renderPane(); changed(); }
+    // keep the time inside the element and one frame clear of the other keyframe, so reel.json `keys` stay valid for check
+    const [a, b] = elTime(e), f = 1 / P.fps, i = +d.i, other = keys[1 - i];
+    let nt = clamp(fps1(toSrc(clamp(v, 0, edDur()))), a, b);
+    if (other && Math.abs(other.t - nt) < f / 2) nt = clamp(fps1(nt + (i > 0 || other.t < nt ? f : -f)), a, b);
+    if (other && Math.abs(other.t - nt) < f / 2) nt = fps1(other.t + (other.t - f >= a ? -f : f));
+    keys[i].t = nt; setKeys(e, keys); renderPane(); changed(); }
 });
 $('#pane').addEventListener('click', ev => {
   const q = s => ev.target.closest(s);
@@ -999,7 +1007,7 @@ function renderPresence(){
 function renderQueue(){
   if (!P || !st) return;
   const fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v), over = Object.entries(st.over).filter(fresh).filter(([k]) => pathExists(k));
-  const edits = over.filter(([k]) => !k.endsWith('.@len')), trims = over.filter(([k]) => k.endsWith('.@len')), lab = convo.sending ? 'Sending' : 'Queued', out = [];
+  const edits = over.filter(([k]) => !k.endsWith('.@len')), trims = over.filter(([k]) => k.endsWith('.@len') && realTrim(k)), lab = convo.sending ? 'Sending' : 'Queued', out = [];
   if (edits.length) out.push(`<div class="bub q"><div class="bh"><b>${edits.length} change${edits.length > 1 ? 's' : ''}</b><span class="bst">${lab}</span></div>${edits.map(([k, v]) => { const r = editRow(k, v);
     return `<div class="ql"><button class="qt" data-qsel="${esc(k.split('.')[0])}">${esc(r.element)} · ${esc(r.field)}: ${esc(cut(r.from))} → ${esc(cut(r.to))}</button><button class="undo" data-undo="${esc(k)}">Undo</button></div>`; }).join('')}</div>`);
   for (const n of openNotes()) { const i = st.notes.indexOf(n) + 1, e = n.el && elById(n.el);
@@ -1058,7 +1066,7 @@ function feedback(){
   return {title: P.title, id: P.id, version: P.version || 1, path: P.path || '', fps: P.fps, duration: P.duration,
     edits: over.filter(([k]) => !k.endsWith('.@len')).map(([k, v]) => editRow(k, v)),
     notes: openNotes().map((n, i) => { const e = n.el && elById(n.el), s = sceneAt(n.t); return {n: i + 1, t: n.t, scene: `${s.id} ${s.name}`, x: n.x, y: n.y, on: e ? e.label : '', src: e?.src || '', text: n.text}; }),
-    trims: over.filter(([k]) => k.endsWith('.@len')).map(([k]) => { const s = sceneOf(k.split('.')[0]), O = s.t[1] - s.t[0], L = sceneLen(s);
+    trims: over.filter(([k]) => k.endsWith('.@len') && realTrim(k)).map(([k]) => { const s = sceneOf(k.split('.')[0]), O = s.t[1] - s.t[0], L = sceneLen(s);
       return {scene: s.id, name: s.name, from: +O.toFixed(2), to: +L.toFixed(2), drop: `${(s.t[0] + L).toFixed(2)}-${s.t[1].toFixed(2)}s`, shift: `-${(O - L).toFixed(2)}s`}; }),
     links: st.links.filter(l => !l.sent).map(l => l.url),
     messages: (st.messages || []).map(m => m.text),
@@ -1296,6 +1304,16 @@ async function selftest(){
     eq([Object.keys(st.over), st.notes[0].el], [[`${s0.id}.@len`], null], 'edits on removed elements, scenes and brand entries are dropped');
     const nb = allEls().find(x => x.box), nbBox = nb.box, nbRef = sceneOf(nb.s).els.find(x => x.id === nb.id); nbRef.box = null;
     try { st.over = {[`${nb.id}.@box`]: [1, 1, 5, 5], [`${nb.id}.@keys`]: []}; pruneMissing(); eq(Object.keys(st.over), [], 'box edits on an element that lost its box are dropped'); } finally { nbRef.box = nbBox; }
+    // trims: a full-length drag stores nothing; a no-op trim is never queued or sent
+    st.over = {}; setTrim({id: s0.id, t: [s0.t[0], s0.t[0] + 4.699999999999999]}, 4.7); eq(`${s0.id}.@len` in st.over, false, 'dragging back to full length stores no trim');
+    st.over = {[`${s0.id}.@len`]: O0 + 1}; renderQueue(); eq([feedback().trims.length, document.querySelectorAll('#convoQ [data-trim-bub]').length], [0, 0], 'a trim not shorter than the scene is not queued or sent');
+    // keyframe times typed in the card stay inside the element and never collide
+    const ke2 = allEls().find(x => x.box && x.t[1] - x.t[0] > 2); st.over = {};
+    setKeys(ke2, [{t: fps1(ke2.t[0] + 0.5), box: ke2.box}, {t: fps1(ke2.t[0] + 1.5), box: ke2.box.map(v => v + 1)}]);
+    Object.assign(ui, {sel: ke2.id, scene: ke2.s, tab: 'scene'}); renderPane();
+    const typeT = (i, v) => { const inp = document.querySelector(`[data-key="${ke2.id}"][data-i="${i}"][data-ix="t"]`); inp.value = String(v); inp.dispatchEvent(new Event('change', {bubbles: true})); };
+    typeT(1, toEd(ke2.t[1]) + 5); eq(elKeys(elById(ke2.id))[1].t <= ke2.t[1] + 1e-6, true, 'a typed time past the element end is clamped to it');
+    renderPane(); typeT(1, +toEd(elKeys(elById(ke2.id))[0].t).toFixed(2)); const kk = elKeys(elById(ke2.id)); eq(kk[1].t > kk[0].t, true, 'two keyframes never share a time');
     st.over = {'gone-el.text': 'x'}; let threw = false; try { renderQueue(); } catch (e) { threw = true; } eq(threw, false, 'the queue skips an edit on a removed element');
   } finally { vid = realVid; st.over = JSON.parse(saved); Object.assign(st, JSON.parse(savedQ)); markDirty(); renderAll(); }
   return 'selftest ok';

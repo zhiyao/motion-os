@@ -113,6 +113,7 @@ function cmdFrame(){
   const dir = projectDir(pos[1]), t = Number(pos[2]);
   if (!pos[2] || isNaN(t)) usage('frame needs <project> <t> (seconds)');
   const reel = readReel(dir); if (!reel) fail('no_reel', `no readable reel.json in ${dir}`);
+  if (typeof reel.src !== 'string') fail('no_src', 'reel.json has no "src" video to take the frame from', [`Run \`${AXI} check ${dir}\``]);
   const file = path.join(dir, '.motion-os', 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
   try { execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', path.join(dir, reel.src), '-frames:v', '1', file], {stdio: ['ignore', 'ignore', 'pipe']}); }
   catch (e) { fail(e.code === 'ENOENT' ? 'no_ffmpeg' : 'ffmpeg_failed', e.code === 'ENOENT' ? 'ffmpeg is not installed' : String(e.stderr || e.message).trim()); }

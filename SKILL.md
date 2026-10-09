@@ -5,7 +5,7 @@ description: Build motion graphics and launch videos in code, then open them in 
 
 # Motion OS
 
-Motion OS is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Claude**, and you pick it up with `motion-os-axi poll`. You apply it, re-render, bump the version, and the player reloads itself.
+Motion OS is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Agent**, and you pick it up with `motion-os-axi poll`. You apply it, re-render, bump the version, and the player reloads itself.
 
 `SKILL_DIR` below means the folder this file is in (the player is at `SKILL_DIR/player/`).
 
