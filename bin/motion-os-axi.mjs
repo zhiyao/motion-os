@@ -76,6 +76,7 @@ function cmdCheck(){
 }
 
 async function cmdPoll(){
+  if (flags.has('--timeout')) { const v = optVal('--timeout'); if (v == null || v.startsWith('--') || !Number.isFinite(Number(v)) || Number(v) < 0) usage('--timeout needs a number of seconds (0 = wait forever)'); }
   const dir = projectDir(pos[1]), limit = Number(optVal('--timeout') || 0) * 1000, t0 = Date.now();
   if (flags.has('--reply')) {
     const text = optVal('--reply');
@@ -115,7 +116,8 @@ function cmdFrame(){
   const reel = readReel(dir); if (!reel) fail('no_reel', `no readable reel.json in ${dir}`);
   if (typeof reel.src !== 'string') fail('no_src', 'reel.json has no "src" video to take the frame from', [`Run \`${AXI} check ${dir}\``]);
   const file = path.join(dir, '.motion-os', 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
-  try { execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', path.join(dir, reel.src), '-frames:v', '1', file], {stdio: ['ignore', 'ignore', 'pipe']}); }
+  const src = [path.join(dir, reel.src), path.join(dir, 'public', reel.src)].find(f => fs.existsSync(f)) || path.join(dir, reel.src);   // same public/ fallback as the player server
+  try { execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', src, '-frames:v', '1', file], {stdio: ['ignore', 'ignore', 'pipe']}); }
   catch (e) { fail(e.code === 'ENOENT' ? 'no_ffmpeg' : 'ffmpeg_failed', e.code === 'ENOENT' ? 'ffmpeg is not installed' : String(e.stderr || e.message).trim()); }
   out({frame: file, t}, ['Read the image to see what the note points at']);
 }

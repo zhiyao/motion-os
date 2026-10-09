@@ -48,6 +48,13 @@ export async function selftest(){
   r = good(); delete r.scenes[1].t; eq(msgs(r).includes('error S2: t must be [start, end] in seconds'), true, 'scene without t is reported, not thrown');
   r = good(); r.assets = [{name: 'x'}]; eq(msgs(r), ['error assets: an asset has no id'], 'asset without id');
   r = good(); r.scenes[0].els[0].props = {img: null}; eq(msgs(r), ['error a: prop img is empty'], 'null prop');
+  eq(checkReelData(null).map(p => p.message), ['reel.json must be an object'], 'a non-object reel is reported');
+  r = good(); r.scenes = []; eq(msgs(r), ['error reel: needs at least one scene'], 'empty scenes');
+  r = good(); delete r.scenes[1].els; eq(msgs(r), ['error S2: els must be an array'], 'scene without els');
+  r = good(); delete r.scenes[1].id; eq(msgs(r).includes('error scene 2: missing id'), true, 'scene without id');
+  r = good(); delete r.scenes[1].els[0].id; eq(msgs(r), ['error S2: an element has no id'], 'element without id');
+  r = good(); delete r.scenes[1].els[0].t; eq(msgs(r), ['error b: t must be [start, end] in seconds'], 'element without t');
+  r = good(); r.src = '../v.mp4'; eq(msgs(r), ['error reel: src ../v.mp4 is outside the project'], 'paths may not leave the project');
   r = good(); r.live = 'live.js'; r.export = {}; eq(msgs(r, {exists: p => p !== 'live.js'}), ['warn reel: live bundle live.js not found', 'warn reel: export has no cmd'], 'live and export');
 
   // store: registry and queue, in a temp home and project
@@ -67,6 +74,10 @@ export async function selftest(){
   await new Promise(r => setTimeout(r, 120));
   eq(leaseQueue(proj, 80).length, 2, 'an unacked lease expires and is handed out again');
   ackQueue(proj, leased.map(b => b.id)); eq(readQueue(proj), [], 'ack removes them');
+  pushBatch(proj, {version: 1, a: 'old'}); pushBatch(proj, {version: 2, a: 'new'});
+  const l1 = leaseQueue(proj), l2 = leaseQueue(proj);
+  eq([l1.map(b => b.payload.a), l2.map(b => b.payload.a)], [['old'], ['new']], 'batches from different versions are delivered separately');
+  ackQueue(proj, [...l1, ...l2].map(b => b.id));
 
   // transcript
   const u = appendTranscript(proj, {role: 'user', batch: {notes: [1]}, status: 'sent'});
@@ -98,6 +109,12 @@ export async function selftest(){
   const proj3 = path.join(tmp, 'proj3'); fs.mkdirSync(proj3); fs.writeFileSync(path.join(proj3, 'reel.json'), JSON.stringify({id: 'x'}));
   let out3 = ''; try { execFileSync(process.execPath, [cli, 'frame', proj3, '1'], {env: process.env, stdio: 'pipe'}); } catch (e) { out3 = String(e.stdout); }
   eq(out3.startsWith('error: no_src'), true, 'frame without src is a TOON error');
+  for (const bad of [['--timeout', 'abc'], ['--timeout']]) { let code = 0; try { execFileSync(process.execPath, [cli, 'poll', proj, ...bad], {env: process.env, stdio: 'pipe'}); } catch (e) { code = e.status; } eq(code, 2, `poll ${bad.join(' ')} is a usage error`); }
+  const proj4 = path.join(tmp, 'proj4'); fs.mkdirSync(path.join(proj4, 'public'), {recursive: true});
+  fs.copyFileSync(fileURLToPath(new URL('../examples/qbot-tag/video.mp4', import.meta.url)), path.join(proj4, 'public', 'v.mp4'));
+  fs.writeFileSync(path.join(proj4, 'reel.json'), JSON.stringify({id: 'p4', src: 'v.mp4'}));
+  let out4 = ''; try { out4 = execFileSync(process.execPath, [cli, 'frame', proj4, '1'], {env: process.env, stdio: 'pipe'}).toString(); } catch (e) { out4 = String(e.stdout); }
+  eq(out4.startsWith('frame: '), true, 'frame finds a src that lives in public/');
   fs.rmSync(path.join(proj, '.motion-os', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
 
   // registry: players starting at the same moment must not overwrite each other

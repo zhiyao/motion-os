@@ -437,10 +437,9 @@ function pruneMissing(){ for (const k of Object.keys(st.over)) if (!pathExists(k
 // the element got its keys is unsent work (sent moves were already dropped by keepAfterNewVersion), so keep it and make the
 // removal explicit: the queue shows "remove the animation" + the move, and Undo brings the new animation back.
 function pruneReelBoxes(){ for (const e of allEls()) if (e.keys?.length && `${e.id}.@box` in st.over && !(`${e.id}.@keys` in st.over)) st.over[`${e.id}.@keys`] = []; }
-// Edits to keep when a new version loads: anything not yet sent as-is. Keyframes sent in any form are dropped,
-// because the new code already animates the sent ones and re-applying a changed set would add the motion twice.
-const keepAfterNewVersion = (over, snap) => Object.fromEntries(Object.entries(over).filter(([k, v]) =>
-  k.endsWith('.@keys') ? !(k in snap) : JSON.stringify(snap[k]) !== JSON.stringify(v)));
+// Edits to keep when a new version loads: anything not yet sent as-is. That includes a keyframe edit revised after it was
+// sent: an @keys edit replaces the element's reel.json keys (Ed never adds it on top), so keeping it can't double the motion.
+const keepAfterNewVersion = (over, snap) => Object.fromEntries(Object.entries(over).filter(([k, v]) => JSON.stringify(snap[k]) !== JSON.stringify(v)));
 function loadProject(){
   const ver = P.version || 1;
   try { st = JSON.parse(localStorage.getItem(KEY()) || 'null'); } catch (e) { st = null; }
@@ -851,7 +850,8 @@ function mediaPane(){
 /* panel events */
 function changed(){ renderTL(); renderHots(); markDirty(); renderQueue(); }
 // Undoing a keyframe edit also drops a move: a move on a reel-animated element only made sense with the animation removed.
-function undoPath(path){ const t0 = now(); delete st.over[path]; if (path.endsWith('.@keys')) delete st.over[path.replace(/@keys$/, '@box')]; if (path.endsWith('.@len')) seek(t0);
+function undoPath(path){ if (convo.sending) return toast('Sending… Undo again in a moment.');   // the request already holds this edit
+  const t0 = now(); delete st.over[path]; if (path.endsWith('.@keys')) delete st.over[path.replace(/@keys$/, '@box')]; if (path.endsWith('.@len')) seek(t0);
   if (path === 'audio.music' || path === 'brand.logo') setupMusic(); renderPane(); changed(); }
 function touchScene(sid){ if (sid && st.status[sid] === 'review') st.status[sid] = 'changes'; }
 /* keyframes: "<id>.@keys" = [{t, box}], 1 or 2, sorted. Replaces "<id>.@box" for that element. */
@@ -1084,10 +1084,12 @@ async function sendFeedback(){
   convo.sending = true; renderQueue(); $('#sendErr').hidden = true;
   try {
     // snapshot what this send contains, so anything queued while it is in flight stays queued
-    const body = JSON.stringify(feedback()), noteIds = openNotes().map(n => n.id), snap = JSON.parse(JSON.stringify(st.over));
+    const body = JSON.stringify(feedback()), noteText = new Map(openNotes().map(n => [n.id, n.text])), snap = JSON.parse(JSON.stringify(st.over));
     const links = st.links.filter(l => !l.sent), msgIds = new Set((st.messages || []).map(m => m.id));
     const r = await fetch('feedback', {method: 'POST', body});
     if (!r.ok) throw new Error(`the player server answered ${r.status}`);
+    // a note edited while the request was in flight stays queued, so its new text goes with the next Send
+    const noteIds = st.notes.filter(n => noteText.has(n.id) && noteText.get(n.id) === n.text).map(n => n.id);
     st.sent = [...new Set([...st.sent, ...noteIds])]; st.sentSnap = snap; links.forEach(l => l.sent = true); st.messages = (st.messages || []).filter(m => !msgIds.has(m.id));
     convo.sending = false; renderAll(); toast('Sent to the agent'); pollTranscript();
   } catch (e) { convo.sending = false; $('#sendErr').textContent = `Couldn't send: ${e.message}. Your queue is kept.`; $('#sendErr').hidden = false; renderQueue(); }
@@ -1216,7 +1218,7 @@ async function selftest(){
     eq(+tIn().value, +fps1(T1 + 0.3).toFixed(2), 'panel shows the new time in order');
     // after a new version, sent keyframes are dropped even if changed since; other unsent edits stay
     eq(keepAfterNewVersion({'a.@keys':[{t:1, box:[1]}], 'b.@box':[1], 'c.@box':[2], 'd.@box':[3]}, {'a.@keys':[{t:1, box:[0]}], 'b.@box':[1], 'd.@box':[9]}),
-       {'c.@box':[2], 'd.@box':[3]}, 'sent keyframes dropped on new version');
+       {'a.@keys':[{t:1, box:[1]}], 'c.@box':[2], 'd.@box':[3]}, 'on a new version only edits sent unchanged are dropped');
     // two clocks: render time (stored) vs edited time (what you watch with cut tails removed)
     const r3 = x => Math.round(x * 1000) / 1000, [s0, s1, s2] = P.scenes, O0 = s0.t[1] - s0.t[0], L0 = fps1(O0 - 1), f = 1 / P.fps;
     st.over = {};
@@ -1308,6 +1310,16 @@ async function selftest(){
     eq([sentBody?.messages, mi.value, st.messages.length], [['hello'], '', 0], 'the typed text is sent and the box clears');
     const bub = document.createElement('div'); bub.innerHTML = entryHTML({role: 'user', at: new Date().toISOString(), status: 'sent', batch: {messages: ['hello'], notes: [{n: 1, t: 1, text: 'x'}]}});
     eq([bub.querySelector('summary .md')?.textContent, bub.querySelector('summary .sum')?.textContent], ['hello', '1 note'], 'a sent message shows its text in the bubble');
+    // a keyframe edit changed after Send survives the new version (it replaces reel keys, so it can't double-apply)
+    eq(keepAfterNewVersion({'a.@keys': [{t: 1, box: [2]}]}, {'a.@keys': [{t: 1, box: [1]}]}), {'a.@keys': [{t: 1, box: [2]}]}, 'a keyframe revision made after Send is kept');
+    // Undo is held while a send is in flight, so the agent never gets an edit the user already undid
+    st.over = {[`${s0.id}.@len`]: L0}; convo.sending = true; undoPath(`${s0.id}.@len`); convo.sending = false;
+    eq(`${s0.id}.@len` in st.over, true, 'Undo waits while a send is in flight');
+    // a note edited while its send is in flight stays queued with the new text
+    st.over = {}; st.messages = []; st.notes = [{id: 801, t: 1, x: 1, y: 1, el: null, text: 'old'}]; st.sent = []; let rel2; const rf4 = window.fetch;
+    window.fetch = (u, o) => o?.method === 'POST' ? new Promise(r => rel2 = () => r({ok: true, json: async () => ({})})) : Promise.resolve({ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})});
+    try { const sending = sendFeedback(); st.notes[0].text = 'new'; rel2(); await sending; } finally { window.fetch = rf4; }
+    eq(openNotes().map(n => n.text), ['new'], 'a note edited during a send stays queued');
     // things queued while a send is in flight stay queued
     st.messages = [{id: 7, text: 'first'}]; let release; const rf2 = window.fetch;
     window.fetch = (u, o) => o?.method === 'POST' ? new Promise(r => release = () => r({ok: true, json: async () => ({})})) : Promise.resolve({ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})});

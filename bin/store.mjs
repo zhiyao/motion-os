@@ -37,7 +37,8 @@ export function pushBatch(dir, payload){
   writeJson(queuePath(dir), [...q, b]); return b;
 }
 export function leaseQueue(dir, ms = 30000){
-  const q = readQueue(dir), now = Date.now(), free = q.filter(b => !(b.leased > now));
+  // one reel version at a time: batches from an older version carry that version's render times, so they're never merged with newer ones
+  const q = readQueue(dir), now = Date.now(), open = q.filter(b => !(b.leased > now)), free = open.filter(b => b.version === open[0]?.version);
   if (free.length) writeJson(queuePath(dir), q.map(b => free.includes(b) ? {...b, leased: now + ms} : b));
   return free;
 }
