@@ -80,7 +80,12 @@ Rules:
 ### Live projects (instant edits + Export MP4)
 
 For Remotion projects, give the player a live renderer so Edit mode changes show for real and the user can export without you:
-- Wrap each element with a `box` in a small `Ed` component that reads `boxes[id] = [x, y, w, h, nx, ny, nw, nh]` (reel.json box, then the edited box, % of frame) from a `boxes` prop and applies `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. No edit means render children untouched.
+- Wrap each element with a `box` in a small `Ed` component. The `boxes` prop maps element id to one of:
+  - `[x, y, w, h, nx, ny, nw, nh]`: a move (reel.json box, then the edited box, % of frame).
+  - `{"box": [x, y, w, h], "keys": [{"t": 12.0, "box": [nx, ny, nw, nh]}, ...]}`: keyframes, `t` in absolute video seconds. Hold the first box before the first key and the last after the last; ease in-out (`p < .5 ? 4p³ : 1 - (-2p + 2)³ / 2`) between.
+
+  Work out `[nx, ny, nw, nh]` for the current frame, then apply `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. `useCurrentFrame()` is relative to the scene's `<Sequence>`, so give `Ed` the scene's start frame (a context set where the Sequence is mounted) and use `t = (sceneFrom + frame) / fps`. No edit means render children untouched.
+- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSLive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
 - Add an entry that mounts `@remotion/player` and sets `window.MotionOSLive = el => ({ref, setBoxes, setRate})`. Bundle it with esbuild into the project folder and set `"live": "motionos-live.js"` in reel.json.
 - Add `"export": {"cwd": "<folder with node_modules>", "props": {...}, "cmd": "..."}`. The command gets `$PROPS` (JSON with the edits), `$RAW`, `$OUT` (`exports/<id>-<time>.mp4`, never overwritten) and `$PROJECT`. Example: `npx remotion render src/index.tsx Main "$OUT" --props="$PROPS"`.
 - `staticFile()` paths are served from the project's `public/` folder.
@@ -96,13 +101,15 @@ node "$SKILL_DIR/player/serve.mjs" "<project>"
 
 It prints the URL (port 4321, or the next free one) and opens the browser. If a server for this project is already running, keep it; it serves new files live.
 
-Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press N to pin a note, the Script tab has every word, and when they're done, click **Send to Claude**, copy the prompt and paste it here.
+Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press K at two moments to animate an element between them, drag a scene's end on the timeline to shorten it, press N to pin a note, the Script tab has every word, and when they're done, click **Send to Claude**, copy the prompt and paste it here.
 
 ## 6. Apply feedback
 
 When the user pastes a prompt starting with "Motion OS feedback for":
 - **Edits** (before -> after): apply exactly, in `reel.json` and the code.
 - **Size and position** edits come as `[x, y, w, h]` in % of the frame plus a scale. Move and scale that element in the code to match, then update its `box` in `reel.json`.
+- **Keyframes** come as `keyframes, ease in-out ... : 12s [x, y, w, h] -> 14s [x, y, w, h]`. Animate that element's position and scale between the two times with ease in-out, holding before and after, on top of its existing motion. Set its `box` in `reel.json` to the first keyframe's box. Once the new version loads, the player drops the sent keyframes, so the motion now lives only in the code.
+- **Trims** come last, as `S2 Reveal: 4.0s -> 3.0s. Drop 14.00s-15.00s ...; everything after moves 1.00s earlier.` All other times in the prompt are in the current render, so apply them first. Then cut the scene in code (its `Sequence` duration or equivalent; don't speed it up), set its `t[1]` in `reel.json`, shift every later scene's `t`, their elements' `t` and keyframe/note times by the cut, clamp elements that ran past the new end, and update `duration`.
 - **Notes**: each has a timestamp, scene, x/y position, and the element and source file it sits on. Grab that frame (`ffmpeg -ss 12.4 -i video.mp4 -frames:v 1 f.jpg`) and look at it before deciding what the note means.
 - **Links**: download them into `assets/`. Ask first if it isn't clearly the user's own file.
 - Leave scenes marked "approved" untouched.

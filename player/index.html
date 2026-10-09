@@ -126,9 +126,17 @@ button{cursor:pointer}
 .sb b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb small{font-size:10.5px;color:var(--mute);display:flex;gap:5px;align-items:center;white-space:nowrap}
 .sb.on{background:var(--accent-soft);border-color:var(--accent)}
+.trim{position:absolute;right:-1px;top:-1px;bottom:-1px;width:8px;cursor:ew-resize;border-radius:0 7px 7px 0}
+.trim:hover,.sb.trimming .trim{background:var(--accent);opacity:.55}
+.sb .cut{color:var(--accent);font-weight:600}
 .sd{width:7px;height:7px;border-radius:50%;background:var(--line-2);flex:none}
 .sd.approved{background:var(--ok)} .sd.changes{background:var(--pin)}
 .tp{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50% 50% 50% 2px;background:var(--pin);border:1.5px solid var(--panel);cursor:pointer}
+.trk.keys{height:14px}
+.kf{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;transform:rotate(45deg);background:var(--accent);border:1.5px solid var(--panel);cursor:pointer;z-index:1}
+.kl{position:absolute;top:50%;height:2px;margin-top:-1px;background:var(--accent);opacity:.4}
+.kf-go{border:0;background:none;color:var(--accent);padding:0 0 7px;font-size:13px}
+.f .x{border:0;background:none;color:var(--faint);padding:0 0 6px;font-size:15px}
 .bt{position:absolute;top:2px;bottom:2px;width:1px;background:var(--line-2)}
 .bt.down{background:var(--faint)}
 .bt.dropline{width:2px;top:0;bottom:0;background:var(--accent)}
@@ -300,9 +308,10 @@ button{cursor:pointer}
         <div class="tc" id="tc">00:00.0</div>
         <div class="spacer"></div>
         <button class="ib" id="noteBtn" aria-label="Add a note" data-tip="Note mode (N). Click anywhere on the frame to pin a note to that exact moment and spot."><svg viewBox="0 0 16 16"><path d="M8 1.5c-3 0-5 2.1-5 4.8 0 3.4 5 8.2 5 8.2s5-4.8 5-8.2c0-2.7-2-4.8-5-4.8z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6.3" r="1.6" fill="currentColor"/></svg></button>
+        <button class="ib" id="keyBtn" aria-label="Add keyframe" data-tip="Keyframe (K). In Edit, saves the selected element's position and size at this moment. Add a second one somewhere else and it glides between them."><svg viewBox="0 0 16 16"><path d="M8 2l6 6-6 6-6-6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
         <div class="seg" id="speed" aria-label="Speed"><button data-r="0.5">½×</button><button data-r="1" class="on">1×</button><button data-r="2">2×</button></div>
         <button class="ib" id="loopBtn" aria-label="Loop this scene" data-tip="Loop the current scene."><svg viewBox="0 0 16 16"><path d="M3 6.5A4.5 4.5 0 0 1 12.2 5M13 9.5A4.5 4.5 0 0 1 3.8 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.5 2v3.2H9.3M3.5 14v-3.2h3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-        <button class="info hide-sm" data-tip="Space play · ← → one frame · Shift + ← → one second · [ ] previous or next scene · E edit or preview · N note mode · Click any text or image in the frame to edit it.">i</button>
+        <button class="info hide-sm" data-tip="Space play · ← → one frame · Shift + ← → one second · [ ] previous or next scene · E edit or preview · N note mode · K keyframe · Click any text or image in the frame to edit it.">i</button>
       </div>
       <div class="tl"><div class="tl-in" id="tl"></div></div>
     </section>
@@ -331,6 +340,8 @@ const TIPS = {
   add:'Drop new files into the assets/ folder next to reel.json, then say in a note where they go. Links are passed to Claude to download.',
   music:'Background track. Claude lines the beat drop up with the scene you pick.',
   notes:'Notes pin to an exact moment and spot. Use them for things a text box can\'t change, like motion or pacing.',
+  keys:'Where it is at two moments. It glides between them with ease in-out. In Edit, press K to add one at the playhead.',
+  trim:'This scene is cut short: it plays as before but stops sooner, and every later scene moves earlier. Drag its end on the timeline to change it.',
   pending:'These reach the video when you Send to Claude and Claude re-renders it.',
 };
 
@@ -339,6 +350,15 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const ease = p => 1 - Math.pow(1 - clamp(p), 3);
+const easeInOut = p => (p = clamp(p), p < .5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2);
+// Box at time t from 1 or 2 keyframes [{t, box}] (sorted): held before the first and after the last, eased in between.
+function keyBox(keys, t){
+  const [a, b] = keys;
+  if (!b || t <= a.t) return a.box;
+  if (t >= b.t) return b.box;
+  const p = easeInOut((t - a.t) / (b.t - a.t));
+  return a.box.map((v, i) => Math.round((v + (b.box[i] - v) * p) * 10) / 10);
+}
 const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2,'0')}:${s.toFixed(1).padStart(4,'0')}`; };
 let vid = $('#vid'); const overlay = $('#overlay');
 
@@ -349,12 +369,16 @@ let music = null;                 // <audio> for an uploaded music track
 
 // Edits and notes live in this browser, per project. When a new version loads, what was already sent is cleared.
 const KEY = () => 'motionos:' + P.id;
+// Edits to keep when a new version loads: anything not yet sent as-is. Keyframes sent in any form are dropped,
+// because the new code already animates the sent ones and re-applying a changed set would add the motion twice.
+const keepAfterNewVersion = (over, snap) => Object.fromEntries(Object.entries(over).filter(([k, v]) =>
+  k.endsWith('.@keys') ? !(k in snap) : JSON.stringify(snap[k]) !== JSON.stringify(v)));
 function loadProject(){
   const ver = P.version || 1;
   try { st = JSON.parse(localStorage.getItem(KEY()) || 'null'); } catch (e) { st = null; }
   st = Object.assign({over:{}, notes:JSON.parse(JSON.stringify(P.notes || [])), status:{}, links:[], sent:[], sentSnap:{}, ver}, st || {});
   if (st.ver !== ver) {
-    st.over = Object.fromEntries(Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v)));
+    st.over = keepAfterNewVersion(st.over, st.sentSnap);
     st.notes = st.notes.filter(n => !st.sent.includes(n.id)); st.links = st.links.filter(l => !l.sent);
     st.sent = []; st.sentSnap = {}; st.ver = ver;
   }
@@ -373,7 +397,9 @@ const allEls = () => P.scenes.flatMap(s => s.els.map(e => ({...e, s:s.id})));
 const elById = id => allEls().find(e => e.id === id);
 const pv = (e, k) => get(`${e.id}.${k}`, e.props[k].v);
 const elTime = e => get(`${e.id}.@time`, e.t);
-const elBox = e => get(`${e.id}.@box`, e.box);
+const fps1 = t => Math.round(t * P.fps) / P.fps;
+const elKeys = e => get(`${e.id}.@keys`, null);
+const elBox = e => { const k = elKeys(e); return k ? keyBox(k, now()) : get(`${e.id}.@box`, e.box); };
 const brandColor = id => { const c = P.brand.colors.find(c => c.id === id); return c ? get('brand.color.' + id, c.v) : id; };
 const color = v => typeof v === 'string' && v.startsWith('brand.') ? brandColor(v.slice(6)) : v;
 const brandFont = id => get('brand.font.' + id, P.brand.fonts.find(f => f.id === id)?.v);
@@ -382,6 +408,17 @@ const assetName = id => { if (id === 'brand.logo') return 'Brand logo'; const a 
 const elEdited = e => Object.keys(st.over).some(k => k.startsWith(e.id + '.'));
 const sceneAt = t => P.scenes.find(s => t < s.t[1] - 1e-6) || P.scenes[P.scenes.length - 1];
 const now = () => vid.currentTime;
+/* trims: "<sid>.@len" shortens a scene by cutting its tail; later scenes move earlier. Stored times stay in render time
+   (the current video's clock); edited time is what you watch with cut tails removed. */
+const sceneLen = s => Math.min(get(`${s.id}.@len`, s.t[1] - s.t[0]), s.t[1] - s.t[0]);
+function sceneLayout(){ let E = 0; return P.scenes.map(s => { const o = {s, S:s.t[0], L:sceneLen(s), E}; E += o.L; return o; }); }
+const edDur = () => P.scenes.reduce((n, s) => n + sceneLen(s), 0);
+const sceneEnd = s => s.t[0] + sceneLen(s);
+const isCut = t => { const s = sceneAt(t); return t > sceneEnd(s) + 1e-6; };
+function toEd(t){ const s = sceneAt(t), o = sceneLayout().find(o => o.s === s); return o.E + clamp(t - o.S, 0, o.L); }
+function toSrc(t){ const ls = sceneLayout(), o = ls.find(o => t < o.E + o.L) || ls[ls.length - 1]; return o.S + clamp(t - o.E, 0, o.L); }
+// Where playback goes from render time t: null if t isn't in a cut tail, the next scene's start, or -1 after the last scene.
+function nextAfterCut(t){ if (!isCut(t)) return null; const i = P.scenes.indexOf(sceneAt(t)); return i < P.scenes.length - 1 ? P.scenes[i + 1].t[0] : -1; }
 const openNotes = () => st.notes.filter(n => !st.sent.includes(n.id));
 const pendingEdits = () => Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v)).length + st.links.filter(l => !l.sent).length;
 
@@ -398,13 +435,19 @@ const playing = () => !vid.paused;
 function setPlayIcon(on){ $('#playIco').innerHTML = on ? '<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/>' : '<path d="M4 2.5v11l9-5.5z" fill="currentColor"/>'; }
 function seek(t){
   t = clamp(t, 0, P.duration - 0.02);
+  if (isCut(t)) t = sceneEnd(sceneAt(t)) - 1 / P.fps;
+  t = Math.min(t, sceneEnd(P.scenes[P.scenes.length - 1]) - 0.02);  // a trimmed last scene's end is past the last frame
   vid.currentTime = t;
   syncMusic(playing());
   const s = sceneAt(t).id;
   if (s !== ui.scene) { ui.scene = s; if (ui.sel && elById(ui.sel)?.s !== s) ui.sel = null; renderTL(); if (ui.tab === 'scene') renderPane(); }
   tick();
 }
-function vframe(){ if (!vid.paused) { if (ui.loop) { const s = sceneOf(ui.scene); if (vid.currentTime >= s.t[1] - 0.03) vid.currentTime = s.t[0]; } tick(); requestAnimationFrame(vframe); } }
+const loopEnd = s => sceneEnd(s);
+function vframe(){ if (!vid.paused) {
+  if (ui.loop) { const s = sceneOf(ui.scene); if (vid.currentTime >= loopEnd(s) - 0.03) vid.currentTime = s.t[0]; }
+  else if (!live) { const j = nextAfterCut(vid.currentTime); if (j === -1) { vid.currentTime = sceneEnd(sceneAt(vid.currentTime)) - 1 / P.fps; pause(); } else if (j != null) vid.currentTime = j; }
+  tick(); requestAnimationFrame(vframe); } }
 function wireVideo(){
   vid.addEventListener('play', () => { setPlayIcon(true); vframe(); });
   vid.addEventListener('pause', () => { setPlayIcon(false); tick(); });
@@ -420,25 +463,31 @@ function liveVideo(api){
   let rate = 1, t0 = 0;
   const wait = setInterval(() => { if (!p()) return; clearInterval(wait);
     ['play', 'pause', 'ended'].forEach(n => p().addEventListener(n, () => fire(n)));
-    p().seekTo(Math.round(t0 * P.fps)); fire('loadedmetadata'); }, 30);
+    p().seekTo(Math.round(toEd(t0) * P.fps)); fire('loadedmetadata'); }, 30);
   return {
-    get currentTime(){ return p() ? p().getCurrentFrame() / P.fps : t0; },
-    set currentTime(t){ t0 = t; if (p()) { p().seekTo(Math.round(t * P.fps)); setTimeout(() => fire('seeked'), 30); } },
+    get currentTime(){ return p() ? toSrc(p().getCurrentFrame() / P.fps) : t0; },
+    set currentTime(t){ t0 = t; if (p()) { p().seekTo(Math.round(toEd(t) * P.fps)); setTimeout(() => fire('seeked'), 30); } },
     get paused(){ return !p()?.isPlaying(); },
     play(){ p()?.play(); return Promise.resolve(); }, pause(){ p()?.pause(); },
     get playbackRate(){ return rate; }, set playbackRate(r){ rate = r; api.setRate(r); },
     addEventListener(n, f){ (on[n] ||= []).push(f); }, set src(v){}, videoWidth: 0,
   };
 }
-let sentBoxes = '';
-function liveBoxes(){  // the edited boxes the composition needs: id -> [base box, new box]
-  const b = {}; for (const [k, v] of Object.entries(st.over)) if (k.endsWith('.@box')) { const e = elById(k.slice(0, -5)); if (e?.box) b[e.id] = [...e.box, ...v]; }
+let sentBoxes = '', sentScenes = '{}';
+const sceneLens = () => Object.fromEntries(P.scenes.filter(s => `${s.id}.@len` in st.over).map(s => [s.id, sceneLen(s)]));
+function liveBoxes(){  // edited boxes the composition needs: id -> [base box, new box], or {box: base, keys} when keyframed
+  const b = {};
+  for (const e of allEls()) {
+    if (!e.box) continue;
+    const k = elKeys(e), m = get(`${e.id}.@box`, null);
+    if (k) b[e.id] = {box:e.box, keys:k}; else if (m) b[e.id] = [...e.box, ...m];
+  }
   return b;
 }
 function tick(){
   const t = now(), s = sceneAt(t);
   if (s.id !== ui.scene && playing() && !ui.loop) { ui.scene = s.id; if (ui.sel && elById(ui.sel)?.s !== s.id) ui.sel = null; renderTL(); if (ui.tab === 'scene') renderPane(); }
-  $('#tc').innerHTML = `${fmt(t)} <small>/ ${fmt(P.duration)} · ${s.id} ${esc(s.name)}</small>`;
+  $('#tc').innerHTML = `${fmt(toEd(t))} <small>/ ${fmt(edDur())} · ${s.id} ${esc(s.name)}</small>`;
   placePH(); renderHots();
 }
 function setupMusic(){
@@ -446,7 +495,7 @@ function setupMusic(){
   const id = get('audio.music', P.audio.music), src = id && assetSrc(id);
   if (src) { music = new Audio(src); music.volume = get('audio.musicVol', P.audio.musicVol); }
 }
-function syncMusic(on){ if (!music) return; if (on) { music.currentTime = now(); music.playbackRate = clock.rate; music.play().catch(() => {}); } else music.pause(); }
+function syncMusic(on){ if (!music) return; if (on) { music.currentTime = toEd(now()); music.playbackRate = clock.rate; music.play().catch(() => {}); } else music.pause(); }
 
 new ResizeObserver(() => { placePH(); renderHots(); }).observe($('#viewer'));
 
@@ -479,10 +528,11 @@ function renderHots(){
 }
 // Moved or resized elements: blur where it was, and draw that patch of the video at the new spot as a live preview.
 function drawGhosts(){
-  if (live) { const j = JSON.stringify(liveBoxes()); if (j !== sentBoxes) { sentBoxes = j; live.setBoxes(JSON.parse(j)); } return; }
+  if (live) { const j = JSON.stringify(liveBoxes()); if (j !== sentBoxes) { sentBoxes = j; live.setBoxes(JSON.parse(j)); }
+    const sj = JSON.stringify(sceneLens()); if (live.setScenes && sj !== sentScenes) { sentScenes = sj; live.setScenes(JSON.parse(sj)); } return; }
   const layer = $('#ghosts'), keep = new Set(), r = overlay.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   for (const e of sceneOf(ui.scene).els.map(e => ({...e, s:ui.scene}))) {
-    if (!e.box || !(`${e.id}.@box` in st.over)) continue;
+    if (!e.box || !(`${e.id}.@box` in st.over || `${e.id}.@keys` in st.over)) continue;
     const b = boxOf(e); if (!b) continue;
     keep.add(e.id);
     let g = layer.querySelector(`[data-g="${e.id}"]`);
@@ -517,7 +567,8 @@ overlay.addEventListener('pointerdown', ev => {
   if (ui.mode !== 'edit' || ev.button || ev.target.closest('.pop,.chip,[data-pin]')) return;
   const [x, y] = pt(ev);
   let g = grab(x, y);
-  if (!g) { const e = hit(x, y); if (!e?.box) { if (ui.sel) { ui.sel = null; renderPane(); renderHots(); } return; } selectEl(e.id, true); g = grab(x, y); if (!g) return; }
+  if (!g) { const e = hit(x, y); if (!e?.box) { if (ui.sel) { ui.sel = null; renderPane(); renderTL(); renderHots(); } return; } selectEl(e.id, true); g = grab(x, y); if (!g) return; }
+  const ks = elKeys(g.sel); if (ks && ks.length >= 2 && onKey(ks, fps1(now())) < 0) { toast('Jump to a keyframe to change it'); return; }
   pause(); drag = {h:g.h, x, y, b:[...g.sb], e:g.sel}; overlay.setPointerCapture(ev.pointerId); ev.preventDefault();
 });
 overlay.addEventListener('pointermove', ev => {
@@ -530,7 +581,7 @@ overlay.addEventListener('pointermove', ev => {
     const s = Math.max(0.1, ((L ? ax - x : x - ax) / bw + (T ? ay - y : y - ay) / bh) / 2);
     nb = [L ? ax - bw * s : ax, T ? ay - bh * s : ay, bw * s, bh * s];
   }
-  set(`${drag.e.id}.@box`, nb.map(r1), drag.e.box); touchScene(drag.e.s); renderHots();
+  moveTo(drag.e, nb.map(r1)); renderHots();
 });
 overlay.addEventListener('pointerup', () => { if (drag) { drag = null; renderPane(); changed(); } });
 overlay.addEventListener('click', ev => {
@@ -546,7 +597,7 @@ function renderPop(){
   const p = ui.pop;
   $('#popLayer').innerHTML = p ? `<div class="pin" style="left:${p.x}%;top:${p.y}%">${st.notes.length + 1}</div>
     <div class="pop" style="left:${Math.min(Math.max(p.x, 2), 68)}%;${p.y > 55 ? `bottom:${100 - p.y + 4}%` : `top:${p.y + 4}%`}">
-      <div class="meta mono">${fmt(p.t)} · ${sceneAt(p.t).id}${p.el ? ' · ' + esc(elById(p.el).label) : ''}</div>
+      <div class="meta mono">${fmt(toEd(p.t))} · ${sceneAt(p.t).id}${p.el ? ' · ' + esc(elById(p.el).label) : ''}</div>
       <textarea id="popTa" placeholder="What should change?"></textarea>
       <div class="row"><button class="btn ghost sm" data-act="cancel">Cancel</button><button class="btn primary sm" data-act="add">Add note</button></div></div>` : '';
   if (p) $('#popTa').focus();
@@ -565,27 +616,42 @@ function closePop(){ if (ui.pop) { ui.pop = null; renderPop(); } }
 function setMode(m){ if (m === 'edit') pause(); ui.mode = m; ui.hover = null; [...$('#modes').children].forEach(b => b.classList.toggle('on', b.dataset.m === (m === 'edit' ? 'edit' : 'preview'))); $('#noteBtn').classList.toggle('on', m === 'note'); overlay.classList.toggle('note-mode', m === 'note'); overlay.classList.toggle('move-mode', m === 'edit'); closePop(); renderHots(); }
 
 /* ================= timeline ================= */
-const pct = t => (t / P.duration * 100) + '%';
+let trimming = null;  // {sid, E, O, D0} while dragging a scene's end; the scale is frozen at D0 so the pointer doesn't chase it
+const tlDur = () => trimming ? trimming.D0 : edDur();
+const epct = t => (t / tlDur() * 100) + '%';   // edited time -> % of the timeline
+const pct = t => epct(toEd(t));                 // render time -> % of the timeline
+const canTrim = () => !live || !!live.setScenes;
 function renderTL(){
   let beats = '';
-  if (P.audio.bpm) { const bt = 60 / P.audio.bpm; let i = 0; for (let t = P.audio.drop % bt; t < P.duration; t += bt, i++) { const k = Math.round((t - P.audio.drop) / bt); beats += `<span class="bt ${Math.abs(t - P.audio.drop) < 0.01 ? 'dropline' : k % 4 === 0 ? 'down' : ''}" style="left:${pct(t)}"></span>`; } }
+  if (P.audio.bpm) { const bt = 60 / P.audio.bpm; let i = 0; for (let t = P.audio.drop % bt; t < edDur(); t += bt, i++) { const k = Math.round((t - P.audio.drop) / bt); beats += `<span class="bt ${Math.abs(t - P.audio.drop) < 0.01 ? 'dropline' : k % 4 === 0 ? 'down' : ''}" style="left:${epct(t)}"></span>`; } }
+  const ke = ui.sel && elById(ui.sel), keys = ke && elKeys(ke);
+  const keyRow = keys ? `<div class="trk keys">${keys.length === 2 ? `<span class="kl" style="left:${pct(keys[0].t)};width:${epct(toEd(keys[1].t) - toEd(keys[0].t))}"></span>` : ''}${keys.map(k => `<span class="kf" data-key-t="${k.t}" style="left:${pct(k.t)};${isCut(k.t) ? 'opacity:.35;' : ''}" data-tip="${esc(ke.label)} keyframe at ${fmt(toEd(k.t))}"></span>`).join('')}</div>` : '';
   $('#tl').innerHTML = `
-    <div class="trk scenes">${P.scenes.map(s => `<div class="sb ${ui.scene === s.id ? 'on' : ''}" data-scene="${s.id}" style="left:${pct(s.t[0])};width:calc(${pct(s.t[1] - s.t[0])} - 3px)"><b>${esc(s.name)}</b><small><span class="sd ${st.status[s.id]}"></span>${(s.t[1] - s.t[0]).toFixed(1)}s</small></div>`).join('')}</div>
-    <div class="trk pins">${st.notes.map(n => `<span class="tp" data-note="${n.id}" style="left:${pct(n.t)};${st.sent.includes(n.id) ? 'opacity:.35' : ''}" data-tip="${esc(n.text)}"></span>`).join('')}</div>
+    <div class="trk scenes">${sceneLayout().map(({s, L, E}) => `<div class="sb ${ui.scene === s.id ? 'on' : ''} ${trimming?.sid === s.id ? 'trimming' : ''}" data-scene="${s.id}" style="left:${epct(E)};width:calc(${epct(L)} - 3px)" ${canTrim() ? '' : 'data-tip="Trimming needs an updated live renderer"'}><b>${esc(s.name)}</b><small><span class="sd ${st.status[s.id]}"></span>${L < s.t[1] - s.t[0] - 1e-6 ? `<span class="cut">${L.toFixed(1)}s</span>` : `${L.toFixed(1)}s`}</small>${canTrim() ? `<i class="trim" data-trim="${s.id}" data-tip="Drag left to shorten this scene"></i>` : ''}</div>`).join('')}</div>
+    <div class="trk pins">${st.notes.map(n => `<span class="tp" data-note="${n.id}" style="left:${pct(n.t)};${st.sent.includes(n.id) || isCut(n.t) ? 'opacity:.35' : ''}" data-tip="${esc(n.text)}"></span>`).join('')}</div>
+    ${keyRow}
     ${beats ? `<div class="trk beats" data-tip="Beat grid at ${P.audio.bpm} BPM. The blue line is where the music drop lands.">${beats}</div>` : ''}
     <div class="ph" id="ph"></div>`;
   placePH();
 }
 function placePH(){ const ph = $('#ph'); if (ph && P) ph.style.left = `calc(${pct(now())} - 1px)`; }
 let scrubbing = false;
-const scrubTo = ev => { const r = $('#tl .trk').getBoundingClientRect(); seek((ev.clientX - r.left) / r.width * P.duration); };
+const scrubTo = ev => { const r = $('#tl .trk').getBoundingClientRect(); seek(toSrc((ev.clientX - r.left) / r.width * edDur())); };
 $('#tl').addEventListener('pointerdown', ev => {
+  const tr = ev.target.closest('[data-trim]'); if (tr) { const s = sceneOf(tr.dataset.trim), o = sceneLayout().find(o => o.s === s); pause(); trimming = {sid:s.id, E:o.E, O:s.t[1] - s.t[0], D0:edDur(), t:now()}; ev.preventDefault(); return; }
+  const kf = ev.target.closest('[data-key-t]'); if (kf) { pause(); return seek(+kf.dataset.keyT); }
   const n = ev.target.closest('[data-note]'); if (n) return focusNote(+n.dataset.note);
   if (!ev.target.closest('.trk')) return;
   scrubbing = true; pause(); scrubTo(ev); ev.target.setPointerCapture?.(ev.pointerId);
 });
-window.addEventListener('pointermove', ev => { if (scrubbing) scrubTo(ev); });
-window.addEventListener('pointerup', () => scrubbing = false);
+window.addEventListener('pointermove', ev => {
+  if (trimming) { const r = $('#tl .trk').getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * trimming.D0, s = sceneOf(trimming.sid);
+    set(`${s.id}.@len`, fps1(clamp(x - trimming.E, Math.min(0.5, trimming.O), trimming.O)), trimming.O); renderTL(); return; }
+  if (scrubbing) scrubTo(ev);
+});
+window.addEventListener('pointerup', () => { scrubbing = false;
+  // seek to where the playhead was in render time: a live clock read now would use the new layout before the player has it
+  if (trimming) { const {sid, t} = trimming; trimming = null; touchScene(sid); seek(t); renderAll(); } });
 
 /* ================= panel ================= */
 const ICON = {text:'<path d="M3 4h10M8 4v9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
@@ -605,6 +671,7 @@ function scenePane(){
     <div class="ph2"><h2>${esc(s.name)}</h2>
       <div class="status" data-status>${[['review','Review'],['changes','Fix'],['approved','Approved']].map(([v, l]) => `<button class="${stv === v ? 'on' : ''}" data-v="${v}"><span class="sd ${v}"></span>${l}</button>`).join('')}</div>
       <button class="info" data-tip-id="status">i</button></div>
+    ${sceneLen(s) < s.t[1] - s.t[0] - 1e-6 ? `<div class="f changed"><div class="fl">Length ${(s.t[1] - s.t[0]).toFixed(1)}s → ${sceneLen(s).toFixed(1)}s<button class="info" data-tip-id="trim">i</button><span class="sp"></span><button class="undo" data-undo="${s.id}.@len">Undo</button></div></div>` : ''}
     <div class="lbl">On screen <button class="info" data-tip-id="scene">i</button></div>
     ${s.els.map(e => elCard({...e, s:s.id})).join('')}
   </div>`;
@@ -612,7 +679,7 @@ function scenePane(){
 function elCard(e){
   return `<div class="el ${ui.sel === e.id ? 'sel' : ''} ${elEdited(e) ? 'edited' : ''}" data-id="${e.id}">
     <button class="elh" data-pick="${e.id}"><span class="ico"><svg viewBox="0 0 16 16">${elIcon(e)}</svg></span><b>${esc(e.label)}</b><span class="edot"></span><svg class="chev" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></button>
-    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${boxHTML(e)}${timingHTML(e)}</div>` : ''}
+    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${elKeys(e) ? keysHTML(e) : boxHTML(e)}${timingHTML(e)}</div>` : ''}
   </div>`;
 }
 function fieldHTML(e, k, p){
@@ -646,10 +713,17 @@ function boxHTML(e){
   return `<div class="f ${ch ? 'changed' : ''}"><div class="fl">Size and position<button class="info" data-tip-id="box">i</button><span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>
     <div class="row2" style="grid-template-columns:1fr 1fr 1fr">${n('s', 'Scale %', sc)}${n(0, 'X', b[0])}${n(1, 'Y', b[1])}</div></div>`;
 }
+function keysHTML(e){
+  const keys = elKeys(e);
+  const n = (i, ix, l, v, step) => `<label class="f" style="gap:2px"><span class="fl" style="min-height:0">${i ? '' : l}</span><input type="number" step="${step}" data-key="${e.id}" data-i="${i}" data-ix="${ix}" value="${v}"></label>`;
+  return `<div class="f changed"><div class="fl">Keyframes<button class="info" data-tip-id="keys">i</button><span class="sp"></span><button class="undo" data-undo="${e.id}.@keys">Undo</button></div>
+    ${keys.map((k, i) => `<div class="row2" style="grid-template-columns:auto 1.3fr 1fr 1fr 1fr 16px;align-items:end"><button class="kf-go" data-seek="${k.t}" aria-label="Go to keyframe">◆</button>${n(i, 't', 'Time', +toEd(k.t).toFixed(2), +(1 / P.fps).toFixed(4))}${n(i, 0, 'X', k.box[0], 0.5)}${n(i, 1, 'Y', k.box[1], 0.5)}${n(i, 's', 'Scale %', Math.round(k.box[2] / e.box[2] * 100), 5)}<button class="x" data-del-key="${e.id}" data-i="${i}" aria-label="Delete keyframe">×</button></div>`).join('')}
+    ${keys.length < 2 ? `<div class="fl">Go to another moment and press K, or drag it, to add the second keyframe.</div>` : ''}</div>`;
+}
 function timingHTML(e){
   const path = `${e.id}.@time`, v = elTime(e), ch = path in st.over;
   return `<div class="f ${ch ? 'changed' : ''}"><div class="fl">Timing<button class="info" data-tip-id="timing">i</button><span class="sp"></span><button class="undo" data-undo="${path}">Undo</button></div>
-    <div class="row2"><input type="number" step="0.1" data-time="${e.id}" data-ix="0" value="${v[0]}" aria-label="In"><input type="number" step="0.1" data-time="${e.id}" data-ix="1" value="${v[1]}" aria-label="Out"></div></div>`;
+    <div class="row2"><input type="number" step="0.1" data-time="${e.id}" data-ix="0" value="${Math.round(toEd(v[0]) * 10) / 10}" aria-label="In"><input type="number" step="0.1" data-time="${e.id}" data-ix="1" value="${Math.round(toEd(v[1]) * 10) / 10}" aria-label="Out"></div></div>`;
 }
 const thumbStyle = id => { const s = assetSrc(id); return s ? `background-image:url('${s}')` : ''; };
 const thumbLabel = id => assetSrc(id) ? '' : 'None';
@@ -662,8 +736,8 @@ function scriptPane(){
       if (p.type === 'list') get(`${e.id}.${k}`, p.v).forEach((r, i) => p.cols.forEach(c => { if (c.type === 'text') items.push({e, list:`${e.id}.${k}`, i, k:c.k, val:r[c.k], label:`${e.label} ${i + 1}${r.from ? ' · ' + r.from : ''}`}); }));
     }));
     return `<div class="sgrp"><div class="lbl">${esc(s.name)}</div>${items.map(it => it.list
-      ? `<div class="scr ${it.list in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(elTime(it.e)[0])} · ${esc(it.label)}</button><input data-list="${it.list}" data-i="${it.i}" data-k="${it.k}" value="${esc(it.val)}"></div>`
-      : `<div class="scr ${it.path in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(elTime(it.e)[0])} · ${esc(it.label)}</button><input data-path="${it.path}" value="${esc(get(it.path, it.base))}"></div>`).join('')}</div>`;
+      ? `<div class="scr ${it.list in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(toEd(elTime(it.e)[0]))} · ${esc(it.label)}</button><input data-list="${it.list}" data-i="${it.i}" data-k="${it.k}" value="${esc(it.val)}"></div>`
+      : `<div class="scr ${it.path in st.over ? 'changed' : ''}"><button class="t" data-seek="${elTime(it.e)[0] + 0.5}">${fmt(toEd(elTime(it.e)[0]))} · ${esc(it.label)}</button><input data-path="${it.path}" value="${esc(get(it.path, it.base))}"></div>`).join('')}</div>`;
   }).join('');
   return `<div class="pane"><div class="lbl">Every word <button class="info" data-tip-id="script">i</button></div>${groups}</div>`;
 }
@@ -701,13 +775,40 @@ function mediaPane(){
 function notesPane(){
   if (!st.notes.length) return `<div class="pane"><div class="empty">No notes yet.<br>Press <b>N</b>, then click the frame.</div></div>`;
   return `<div class="pane"><div class="lbl">Notes <button class="info" data-tip-id="notes">i</button></div>${st.notes.map((n, i) => `<div class="note ${ui.selNote === n.id ? 'sel' : ''}" data-id="${n.id}">
-    <div class="nh"><span class="num">${i + 1}</span><button class="go mono" data-go-note="${n.id}">${fmt(n.t)}</button><span>${n.el && elById(n.el) ? esc(elById(n.el).label) : sceneAt(n.t).name}</span>${n.example ? '<span class="tag">Example</span>' : ''}${st.sent.includes(n.id) ? '<span class="tag ok">Sent</span>' : ''}<span class="spacer"></span><button data-del-note="${n.id}" aria-label="Delete note">×</button></div>
+    <div class="nh"><span class="num">${i + 1}</span><button class="go mono" data-go-note="${n.id}">${fmt(toEd(n.t))}</button>${isCut(n.t) ? '<span class="tag">Cut</span>' : ''}<span>${n.el && elById(n.el) ? esc(elById(n.el).label) : sceneAt(n.t).name}</span>${n.example ? '<span class="tag">Example</span>' : ''}${st.sent.includes(n.id) ? '<span class="tag ok">Sent</span>' : ''}<span class="spacer"></span><button data-del-note="${n.id}" aria-label="Delete note">×</button></div>
     <textarea data-note-text="${n.id}">${esc(n.text)}</textarea></div>`).join('')}</div>`;
 }
 
 /* panel events */
 function changed(){ renderTL(); renderHots(); markDirty(); }
 function touchScene(sid){ if (sid && st.status[sid] === 'review') st.status[sid] = 'changes'; }
+/* keyframes: "<id>.@keys" = [{t, box}], 1 or 2, sorted. Replaces "<id>.@box" for that element. */
+const onKey = (keys, t) => keys ? keys.findIndex(k => Math.abs(k.t - t) < 0.5 / P.fps) : -1;
+function setKeys(e, keys){
+  delete st.over[`${e.id}.@box`];
+  if (keys.length) st.over[`${e.id}.@keys`] = [...keys].sort((a, b) => a.t - b.t); else delete st.over[`${e.id}.@keys`];
+  touchScene(e.s); markDirty();
+}
+// Add a keyframe at t (default: now, with the box shown now). On a keyframe: update it. With 2 already: replace the nearer.
+function addKey(e, box = elBox(e), t = fps1(now())){
+  const keys = (elKeys(e) || []).map(k => ({...k})), i = onKey(keys, t);
+  if (i >= 0) keys[i].box = box;
+  else if (keys.length < 2) keys.push({t, box});
+  else keys[Math.abs(keys[0].t - t) <= Math.abs(keys[1].t - t) ? 0 : 1] = {t, box};
+  setKeys(e, keys);
+}
+// Where a drag or box field lands: a plain move, a keyframe, or a new second keyframe. False when it can't (2 keys, not on one).
+function moveTo(e, box){
+  const keys = elKeys(e), t = fps1(now());
+  if (!keys) { set(`${e.id}.@box`, box, e.box); touchScene(e.s); return true; }
+  if (onKey(keys, t) < 0 && keys.length >= 2) return false;
+  addKey(e, box, t); return true;
+}
+const keyTarget = () => { const e = ui.mode === 'edit' && ui.sel && elById(ui.sel); return e && e.box && e.s === ui.scene && boxOf(e) ? e : null; };
+function keyNow(){
+  const e = keyTarget(); if (!e) return toast('In Edit, select something on screen first, then press K.');
+  pause(); addKey(e); renderPane(); changed(); toast(`Keyframe at ${fmt(toEd(now()))}`);
+}
 const baseOf = path => {
   if (path.startsWith('brand.color.')) return P.brand.colors.find(c => c.id === path.slice(12)).v;
   if (path.startsWith('brand.font.')) return P.brand.fonts.find(f => f.id === path.slice(11)).v;
@@ -724,23 +825,34 @@ $('#pane').addEventListener('input', ev => {
     return changed(); }
   if (d.list) { const base = baseOf(d.list), rows = JSON.parse(JSON.stringify(get(d.list, base))); rows[+d.i][d.k] = t.type === 'number' ? Number(t.value) : t.value; set(d.list, rows, base); touchScene(sidOf(d.list));
     t.closest('.f,.scr')?.classList.toggle('changed', d.list in st.over); return changed(); }
-  if (d.time) { const e = elById(d.time), v = [...elTime(e)]; v[+d.ix] = Math.round(Number(t.value) * 10) / 10; set(`${d.time}.@time`, v, e.t); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.time}.@time` in st.over); return changed(); }
+  if (d.time) { const e = elById(d.time), v = [...elTime(e)]; v[+d.ix] = Math.round(toSrc(Number(t.value)) * 10) / 10; set(`${d.time}.@time`, v, e.t); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.time}.@time` in st.over); return changed(); }
   if (d.box) { const e = elById(d.box), b = [...elBox(e)], v = Number(t.value); if (!t.value || isNaN(v)) return;
     if (d.ix === 's') { const s = Math.max(10, v) / 100; b[2] = Math.round(e.box[2] * s * 10) / 10; b[3] = Math.round(e.box[3] * s * 10) / 10; } else b[+d.ix] = v;
     set(`${d.box}.@box`, b, e.box); touchScene(e.s); t.closest('.f').classList.toggle('changed', `${d.box}.@box` in st.over); return changed(); }
+  if (d.key) { if (d.ix === 't') return;  // times apply on change: re-sorting mid-typing would shift data-i under the cursor
+    const e = elById(d.key), keys = elKeys(e).map(k => ({...k, box:[...k.box]})), k = keys[+d.i], v = Number(t.value); if (!t.value || isNaN(v)) return;
+    if (d.ix === 's') { const s = Math.max(10, v) / 100; k.box[2] = Math.round(e.box[2] * s * 10) / 10; k.box[3] = Math.round(e.box[3] * s * 10) / 10; }
+    else k.box[+d.ix] = v;
+    setKeys(e, keys); return changed(); }
   if (d.bcolor) { set('brand.color.' + d.bcolor, t.value, baseOf('brand.color.' + d.bcolor)); t.closest('.bc').classList.toggle('changed', ('brand.color.' + d.bcolor) in st.over); t.nextElementSibling.querySelector('small').textContent = t.value.toUpperCase(); return changed(); }
   if (d.vol) { set(d.vol, Number(t.value), baseOf(d.vol)); if (music && d.vol === 'audio.musicVol') music.volume = Number(t.value); return changed(false); }
   if (d.noteText) { st.notes.find(n => n.id === +d.noteText).text = t.value; markDirty(); }
 });
-$('#pane').addEventListener('change', ev => { if (ev.target.tagName === 'SELECT') ev.target.dispatchEvent(new Event('input', {bubbles:true})); });
+$('#pane').addEventListener('change', ev => {
+  const t = ev.target, d = t.dataset;
+  if (t.tagName === 'SELECT') return t.dispatchEvent(new Event('input', {bubbles:true}));
+  if (d.key && d.ix === 't') { const e = elById(d.key), keys = elKeys(e).map(k => ({...k})), v = Number(t.value); if (!t.value || isNaN(v)) return renderPane();
+    keys[+d.i].t = fps1(toSrc(clamp(v, 0, edDur()))); setKeys(e, keys); renderPane(); changed(); }
+});
 $('#pane').addEventListener('click', ev => {
   const q = s => ev.target.closest(s);
   let b;
   if (b = q('[data-status] button')) { st.status[ui.scene] = b.dataset.v; markDirty(); renderPane(); renderTL(); return; }
-  if (b = q('[data-pick]')) { const id = b.dataset.pick; return ui.sel === id ? (ui.sel = null, renderPane(), renderHots()) : selectEl(id); }
-  if (b = q('[data-undo]')) { delete st.over[b.dataset.undo]; if (b.dataset.undo === 'audio.music' || b.dataset.undo === 'brand.logo') setupMusic(); renderPane(); return changed(); }
+  if (b = q('[data-pick]')) { const id = b.dataset.pick; return ui.sel === id ? (ui.sel = null, renderPane(), renderTL(), renderHots()) : selectEl(id); }
+  if (b = q('[data-undo]')) { const t0 = now(); delete st.over[b.dataset.undo]; if (b.dataset.undo.endsWith('.@len')) seek(t0); if (b.dataset.undo === 'audio.music' || b.dataset.undo === 'brand.logo') setupMusic(); renderPane(); return changed(); }
   if (b = q('[data-choice]')) { set(b.dataset.choice, b.dataset.val, baseOf(b.dataset.choice)); touchScene(sidOf(b.dataset.choice)); renderPane(); return changed(); }
   if (b = q('[data-color]')) { set(b.dataset.color, b.dataset.val, baseOf(b.dataset.color)); touchScene(sidOf(b.dataset.color)); renderPane(); return changed(); }
+  if (b = q('[data-del-key]')) { const e = elById(b.dataset.delKey); setKeys(e, elKeys(e).filter((_, i) => i !== +b.dataset.i)); renderPane(); return changed(); }
   if (b = q('[data-swap]')) return openPicker(b.dataset.swap, b.dataset.i, b.dataset.k, b.dataset.type || 'image');
   if (b = q('[data-add-row]')) { const p = b.dataset.addRow, base = baseOf(p), rows = JSON.parse(JSON.stringify(get(p, base))); rows.push({...rows[rows.length - 1]}); set(p, rows, base); touchScene(sidOf(p)); renderPane(); return changed(); }
   if (b = q('[data-del-row]')) { const p = b.dataset.delRow, base = baseOf(p), rows = JSON.parse(JSON.stringify(get(p, base))); rows.splice(+b.dataset.i, 1); set(p, rows, base); touchScene(sidOf(p)); renderPane(); return changed(); }
@@ -785,13 +897,19 @@ function describe(path, v){
   const nice = path.startsWith('brand.color.') ? `Style · ${P.brand.colors.find(c => c.id === path.slice(12)).name} color (used everywhere)` : path.startsWith('brand.font.') ? `Style · ${P.brand.fonts.find(f => f.id === path.slice(11)).name} font` : path === 'brand.logo' ? 'Style · Logo' : path === 'audio.music' ? 'Audio · Music track' : path === 'audio.musicVol' ? 'Audio · Music volume' : path === 'audio.sfxVol' ? 'Audio · Effects volume' : null;
   if (nice) return `- ${nice}: ${show(baseOf(path))} -> ${show(v)}`;
   const [id, k] = path.split('.'), e = elById(id);
+  if (k === '@keys') { const src = e.src ? ` (${e.src})` : '';
+    return v.length === 1
+      ? `- [${fmt(v[0].t)} · ${e.s} · ${e.label}] size and position, [x, y, w, h] in % of frame${src}: ${JSON.stringify(e.box)} -> ${JSON.stringify(v[0].box)}`
+      : `- [${fmt(v[0].t)} · ${e.s} · ${e.label}] keyframes, ease in-out, [x, y, w, h] in % of frame${src}: ${v.map(x => `${+x.t.toFixed(2)}s ${JSON.stringify(x.box)}`).join(' -> ')}`; }
   if (k === '@box') return `- [${fmt(elTime(e)[0])} · ${e.s} · ${e.label}] size and position, [x, y, w, h] in % of frame${e.src ? ` (${e.src})` : ''}: ${JSON.stringify(e.box)} -> ${JSON.stringify(v)} (scale ${Math.round(v[2] / e.box[2] * 100)}%)`;
   return `- [${fmt(elTime(e)[0])} · ${e.s} · ${e.label}] ${k === '@time' ? 'timing (s)' : e.props[k].label}${e.src ? ` (${e.src})` : ''}: ${show(baseOf(path))} -> ${show(v)}`;
 }
 function prompt(){
   const ver = P.version || 1, fresh = ([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v);
   const L = [`Motion OS feedback for "${P.title}" v${ver}`, `Project: ${P.path || P.id} · ${P.w}x${P.h} · ${P.fps} fps · ${P.duration.toFixed(1)}s`, ''];
-  const edits = Object.entries(st.over).filter(fresh).filter(([k]) => !k.endsWith('.motion'));
+  const trims = Object.entries(st.over).filter(fresh).filter(([k]) => k.endsWith('.@len'));
+  if (trims.length) L.splice(2, 0, 'Times are in the current render (before trims).');
+  const edits = Object.entries(st.over).filter(fresh).filter(([k]) => !k.endsWith('.motion') && !k.endsWith('.@len'));
   const motion = Object.entries(st.over).filter(fresh).filter(([k]) => k.endsWith('.motion'));
   if (edits.length) { L.push('## Edits (apply exactly)'); edits.forEach(([k, v]) => L.push(describe(k, v))); L.push(''); }
   const notes = openNotes();
@@ -800,8 +918,12 @@ function prompt(){
     motion.forEach(([k, v], i) => { const e = elById(k.split('.')[0]); L.push(`${notes.length + i + 1}. [${fmt(elTime(e)[0])} · ${e.s} · ${e.label} motion] ${v}`); }); L.push(''); }
   const links = st.links.filter(l => !l.sent);
   if (links.length) { L.push('## Links to download into assets/'); links.forEach(l => L.push('- ' + l.url)); L.push(''); }
+  if (trims.length) { L.push('## Trims (apply last)');
+    trims.forEach(([k]) => { const s = sceneOf(k.split('.')[0]), O = s.t[1] - s.t[0], Ln = sceneLen(s), cut = O - Ln;
+      L.push(`- ${s.id} ${s.name}: ${O.toFixed(1)}s -> ${Ln.toFixed(1)}s. Drop ${(s.t[0] + Ln).toFixed(2)}s-${s.t[1].toFixed(2)}s of the current render; everything after moves ${cut.toFixed(2)}s earlier.`); });
+    L.push(''); }
   L.push('## Scenes', P.scenes.map(s => `${s.id} ${s.name} (${fmt(s.t[0])}-${fmt(s.t[1])}): ${st.status[s.id] === 'approved' ? 'approved, do not touch' : st.status[s.id] === 'changes' ? 'needs changes' : 'in review'}`).join('\n'), '');
-  L.push('## Do', `Use the motion-os skill. Apply the edits exactly and work through the notes. Leave approved scenes alone. Re-render, check it, then update reel.json and set "version" to ${ver + 1} so Motion OS reloads.`);
+  L.push('## Do', `Use the motion-os skill. Apply the edits exactly and work through the notes. Apply trims last. Leave approved scenes alone. Re-render, check it, then update reel.json and set "version" to ${ver + 1} so Motion OS reloads.`);
   return L.join('\n');
 }
 function sheet(html){ const d = document.createElement('div'); d.className = 'scrim'; d.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
@@ -821,7 +943,7 @@ $('#sendBtn').onclick = () => {
 /* ================= export: render a new mp4 with the edits baked in (live projects) ================= */
 $('#exportBtn').onclick = async () => {
   const d = sheet(`<h3>Export MP4</h3><p id="exMsg">Starting the render…</p><div style="height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden"><i id="exBar" style="display:block;height:100%;width:0;background:var(--accent);transition:width .3s"></i></div><p class="mono" id="exLine" style="font-size:11px"></p><div class="row"><button class="btn ghost" data-close>Close</button></div>`);
-  let j = await fetch('export', {method:'POST', body:JSON.stringify({boxes:liveBoxes()})}).then(r => r.json());
+  let j = await fetch('export', {method:'POST', body:JSON.stringify({boxes:liveBoxes(), scenes:sceneLens()})}).then(r => r.json());
   while (j.state === 'running') {
     d.querySelector('#exBar').style.width = j.pct + '%'; d.querySelector('#exMsg').textContent = `Rendering… ${j.pct}%. You can keep working.`; d.querySelector('#exLine').textContent = j.line || '';
     await new Promise(r => setTimeout(r, 1000)); j = await fetch('export').then(r => r.json());
@@ -846,6 +968,7 @@ document.addEventListener('scroll', () => tip.hidden = true, true);
 /* ================= transport + keys ================= */
 $('#playBtn').onclick = () => playing() ? pause() : play();
 $('#noteBtn').onclick = () => setMode(ui.mode === 'note' ? 'preview' : 'note');
+$('#keyBtn').onclick = keyNow;
 $('#modes').onclick = e => { const b = e.target.closest('[data-m]'); if (b) setMode(b.dataset.m); };
 $('#loopBtn').onclick = () => { ui.loop = !ui.loop; $('#loopBtn').classList.toggle('on', ui.loop); };
 $('#speed').onclick = e => { const b = e.target.closest('button'); if (!b) return; clock.rate = +b.dataset.r; vid.playbackRate = clock.rate; if (music) music.playbackRate = clock.rate; [...$('#speed').children].forEach(x => x.classList.toggle('on', x === b)); };
@@ -856,15 +979,116 @@ document.addEventListener('keydown', ev => {
   if (ev.target.closest('input,textarea,select')) return;
   const f = 1 / P.fps;
   if (ev.key === ' ') { ev.preventDefault(); playing() ? pause() : play(); }
-  else if (ev.key === 'ArrowRight') { ev.preventDefault(); pause(); seek(now() + (ev.shiftKey ? 1 : f)); }
-  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); pause(); seek(now() - (ev.shiftKey ? 1 : f)); }
+  else if (ev.key === 'ArrowRight') { ev.preventDefault(); pause(); seek(toSrc(toEd(now()) + (ev.shiftKey ? 1 : f))); }
+  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); pause(); seek(toSrc(toEd(now()) - (ev.shiftKey ? 1 : f))); }
   else if (ev.key === ']') goScene(sIdx() + 1);
   else if (ev.key === '[') goScene(sIdx() - 1);
   else if (ev.key === 'e' || ev.key === 'E') setMode(ui.mode === 'edit' ? 'preview' : 'edit');
   else if (ev.key === 'n' || ev.key === 'N') setMode(ui.mode === 'note' ? 'preview' : 'note');
+  else if (ev.key === 'k' || ev.key === 'K') keyNow();
   else if (ev.key === 'Escape') { closePop(); setMode('preview'); }
 });
 let toastT; function toast(msg){ document.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2200); }
+
+/* ================= selftest: run selftest() in the browser console ================= */
+function selftest(){
+  const eq = (a, b, m) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${m}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
+  const A = {t:2, box:[0, 0, 10, 10]}, B = {t:4, box:[20, 40, 30, 30]};
+  eq(easeInOut(0), 0, 'ease 0'); eq(easeInOut(1), 1, 'ease 1'); eq(easeInOut(0.5), 0.5, 'ease mid'); eq(easeInOut(0.25), 0.0625, 'ease quarter');
+  eq(keyBox([A], 9), A.box, 'one key holds');
+  eq(keyBox([A, B], 1), A.box, 'before holds first');
+  eq(keyBox([A, B], 2), A.box, 'on first');
+  eq(keyBox([A, B], 3), [10, 20, 20, 20], 'midpoint is halfway');
+  eq(keyBox([A, B], 4), B.box, 'on last');
+  eq(keyBox([A, B], 5), B.box, 'after holds last');
+  // state helpers, on a scratch copy of the edits; vid is swapped for a stub so now() is exact (a live player seeks asynchronously)
+  const saved = JSON.stringify(st.over), realVid = vid, e = allEls().find(x => x.box), id = e.id, T0 = e.t[0] + 0.5, T1 = Math.min(e.t[1] - 0.1, T0 + 1.5);
+  vid = {currentTime:0, paused:true, pause(){}};
+  try {
+    st.over = {}; set(`${id}.@box`, [1, 2, e.box[2], e.box[3]], e.box);
+    vid.currentTime = T0; addKey(e);
+    eq(elKeys(e), [{t:fps1(T0), box:[1, 2, e.box[2], e.box[3]]}], 'first key takes the moved box');
+    eq(`${id}.@box` in st.over, false, '@box removed');
+    vid.currentTime = T1; eq(moveTo(e, [5, 6, e.box[2], e.box[3]]), true, 'drag adds second key');
+    eq(elKeys(e).length, 2, 'two keys');
+    vid.currentTime = (T0 + T1) / 2; eq(moveTo(e, [9, 9, 9, 9]), false, 'drag off-key refused');
+    eq(elKeys(e)[1].box, [5, 6, e.box[2], e.box[3]], 'refused drag changed nothing');
+    vid.currentTime = T1; moveTo(e, [7, 7, e.box[2], e.box[3]]); eq(elKeys(e)[1].box, [7, 7, e.box[2], e.box[3]], 'drag on key edits it');
+    setKeys(e, [{...elKeys(e)[0], t:fps1(T1 + 0.5)}, elKeys(e)[1]]); eq(elKeys(e).map(k => k.box[0]), [7, 1], 'keys re-sort by time');
+    setKeys(e, [elKeys(e)[0]]); vid.currentTime = 0; eq(elBox(e), [7, 7, e.box[2], e.box[3]], 'one key left holds');
+    setKeys(e, []); eq(`${id}.@keys` in st.over, false, 'no keys removes the path'); eq(elBox(e), e.box, 'back to reel.json box');
+    setKeys(e, [{t:fps1(T0), box:e.box}, {t:fps1(T1), box:[5, 6, e.box[2], e.box[3]]}]);
+    eq(liveBoxes()[id], {box:e.box, keys:elKeys(e)}, 'live payload carries keys');
+    eq(describe(`${id}.@keys`, elKeys(e)).includes(`keyframes, ease in-out`), true, 'prompt line');
+    eq(describe(`${id}.@keys`, elKeys(e)).includes(`${+fps1(T0).toFixed(2)}s ${JSON.stringify(e.box)} -> `), true, 'prompt has both keys');
+    st.over = {}; set(`${id}.@box`, [1, 2, 3, 4], e.box); eq(liveBoxes()[id], [...e.box, 1, 2, 3, 4], 'old payload for plain moves');
+    // typing a keyframe time that passes through a reorder ("1" on the way to "12") must only change that keyframe
+    setKeys(e, [{t:fps1(T0), box:e.box}, {t:fps1(T1), box:[5, 6, e.box[2], e.box[3]]}]);
+    Object.assign(ui, {sel:id, scene:e.s, tab:'scene'}); renderPane();
+    const tIn = () => document.querySelector(`[data-key="${id}"][data-i="1"][data-ix="t"]`), type = (inp, v) => { inp.value = v; inp.dispatchEvent(new Event('input', {bubbles:true})); };
+    const inp = tIn(); type(inp, '0'); type(inp, String(fps1(T1 + 0.3))); inp.dispatchEvent(new Event('change', {bubbles:true}));
+    eq(elKeys(e).map(k => k.t), [fps1(T0), fps1(T1 + 0.3)], 'typing a time edits only that keyframe');
+    eq(+tIn().value, +fps1(T1 + 0.3).toFixed(2), 'panel shows the new time in order');
+    // after a new version, sent keyframes are dropped even if changed since; other unsent edits stay
+    eq(keepAfterNewVersion({'a.@keys':[{t:1, box:[1]}], 'b.@box':[1], 'c.@box':[2], 'd.@box':[3]}, {'a.@keys':[{t:1, box:[0]}], 'b.@box':[1], 'd.@box':[9]}),
+       {'c.@box':[2], 'd.@box':[3]}, 'sent keyframes dropped on new version');
+    // two clocks: render time (stored) vs edited time (what you watch with cut tails removed)
+    const r3 = x => Math.round(x * 1000) / 1000, [s0, s1, s2] = P.scenes, O0 = s0.t[1] - s0.t[0], L0 = fps1(O0 - 1), f = 1 / P.fps;
+    st.over = {};
+    eq([r3(toEd(1.234)), r3(toSrc(1.234)), r3(edDur())], [1.234, 1.234, r3(P.duration)], 'no trims is identity');
+    st.over[`${s0.id}.@len`] = L0;
+    eq(r3(sceneLen(s0)), r3(L0), 'trimmed length');
+    eq(r3(toEd(s0.t[0] + 0.2)), r3(s0.t[0] + 0.2), 'before the cut unchanged');
+    eq([isCut(s0.t[0] + L0 + 0.5), isCut(s0.t[0] + L0 - 0.1)], [true, false], 'cut tail detected');
+    eq(r3(toEd(s0.t[0] + L0 + 0.5)), r3(L0), 'cut tail maps to the new end');
+    eq(r3(toEd(s1.t[0] + 0.3)), r3(L0 + 0.3), 'later scene moves earlier');
+    eq(r3(toSrc(L0 + 0.3)), r3(s1.t[0] + 0.3), 'edited back to render');
+    eq(r3(toSrc(L0 - 0.1)), r3(s0.t[0] + L0 - 0.1), 'edited inside trimmed scene');
+    eq(r3(sceneEnd(s0)), r3(s0.t[0] + L0), 'scene end is the new end');
+    eq([r3(nextAfterCut(s0.t[0] + L0 + f)), nextAfterCut(s0.t[0] + 0.1)], [r3(s1.t[0]), null], 'jump target after a cut');
+    st.over[`${s1.id}.@len`] = fps1(s1.t[1] - s1.t[0] - 0.5);
+    eq(r3(edDur()), r3(P.duration - (O0 - L0) - (s1.t[1] - s1.t[0] - sceneLen(s1))), 'two trims shorten the total');
+    if (s2) eq(r3(toEd(s2.t[0])), r3(L0 + sceneLen(s1)), 'two trims stack');
+    eq(r3(toSrc(edDur())), r3(P.duration), 'end maps to end');
+    st.over[`${s0.id}.@len`] = O0 + 5; eq(r3(sceneLen(s0)), r3(O0), 'length never exceeds the original');
+    const last = P.scenes[P.scenes.length - 1]; st.over = {[`${last.id}.@len`]: fps1(last.t[1] - last.t[0] - 0.5)};
+    eq(nextAfterCut(P.duration - 0.1), -1, 'last scene cut tail stops');
+    // seek, loop end and time fields respect trims
+    st.over = {[`${s0.id}.@len`]: L0};
+    seek(s0.t[0] + L0 + 0.5); eq(r3(now()), r3(s0.t[0] + L0 - f), 'seek into a cut lands on the new end');
+    eq(loopEnd(s0), sceneEnd(s0), 'loop uses the new end');
+    const e1 = allEls().find(x => x.s === s1.id); Object.assign(ui, {sel:e1.id, scene:s1.id, tab:'scene'}); renderPane();
+    const tf = document.querySelector(`[data-time="${e1.id}"][data-ix="0"]`);
+    eq(+tf.value, Math.round(toEd(e1.t[0]) * 10) / 10, 'timing field shows edited time');
+    tf.value = String(Math.round((toEd(e1.t[0]) + 0.2) * 10) / 10); tf.dispatchEvent(new Event('input', {bubbles:true}));
+    eq(elTime(e1)[0], Math.round((e1.t[0] + 0.2) * 10) / 10, 'timing field stores render time');
+    // prompt and live payload carry trims
+    st.over = {[`${s0.id}.@len`]: L0};
+    eq(sceneLens(), {[s0.id]: L0}, 'scene lengths for the renderer');
+    const pr = prompt();
+    eq(pr.includes('## Trims (apply last)') && pr.includes(`${s0.id} ${s0.name}: ${(O0).toFixed(1)}s -> ${L0.toFixed(1)}s`), true, 'prompt has the trim');
+    eq(pr.includes('Times are in the current render (before trims).'), true, 'prompt says which clock');
+    eq(keepAfterNewVersion({[`${s0.id}.@len`]: L0}, {[`${s0.id}.@len`]: L0}), {}, 'sent trim dropped on new version');
+    // review fixes: a live-style clock (edited frames read back through toSrc) across trim, Undo, last-scene end and arrow steps
+    const liveClock = {ed:0, paused:true, pause(){}, get currentTime(){ return toSrc(this.ed); }, set currentTime(t){ this.ed = toEd(t); }};
+    vid = liveClock; st.over = {}; renderTL();
+    liveClock.currentTime = s0.t[0] + O0 - 0.5;
+    const trk = document.querySelector('#tl .trk').getBoundingClientRect(), xAt = edT => trk.left + edT / edDur() * trk.width, y = trk.top + trk.height / 2;
+    const fire = (el, type, x) => el.dispatchEvent(new PointerEvent(type, {bubbles:true, clientX:x, clientY:y, pointerId:1}));
+    const h0 = document.querySelector(`[data-trim="${s0.id}"]`);
+    fire(h0, 'pointerdown', xAt(O0)); fire(window, 'pointermove', xAt(L0)); fire(window, 'pointerup', xAt(L0));
+    eq([sceneAt(now()).id, isCut(now())], [s0.id, false], 'trim over the playhead stays in the trimmed scene');
+    liveClock.currentTime = s1.t[0] + 0.4; const before = now();
+    Object.assign(ui, {scene:s0.id, tab:'scene'}); renderPane(); document.querySelector(`[data-undo="${s0.id}.@len"]`).click();
+    eq(r3(now()), r3(before), 'undoing a trim keeps the playhead on the same content');
+    st.over = {[`${last.id}.@len`]: fps1(last.t[1] - last.t[0] - 0.5)}; seek(sceneEnd(last));
+    eq(now() < sceneEnd(last), true, 'seek never lands past the trimmed end');
+    st.over = {[`${s0.id}.@len`]: L0}; seek(s0.t[0] + L0 - 0.5);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', shiftKey:true, bubbles:true}));
+    eq(sceneAt(now()).id, s1.id, 'Shift+Right steps across a cut');
+  } finally { vid = realVid; st.over = JSON.parse(saved); markDirty(); renderAll(); }
+  return 'selftest ok';
+}
 
 // Load reel.json, optionally jump to #t=12.5&el=id, then watch for the next version Claude renders.
 const hash = new URLSearchParams(location.hash.slice(1));
