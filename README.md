@@ -1,4 +1,8 @@
-# Motion OS
+# Motion OS AXI
+
+Motion OS AXI is independently maintained by [Zhiyao](https://github.com/zhiyao). It started from [Motion OS](https://github.com/jasonlee-breadcrumb/motion-os), created by [Jason Lee](https://www.youtube.com/@JasonLeeFinance), and builds on that foundation with the `motion-os-axi` command-line interface and an agent feedback queue for reviewing and updating videos.
+
+The original project's MIT license and Jason Lee's copyright notice are retained in [LICENSE](LICENSE).
 
 **Ask Claude for a motion graphic. Review it scene by scene in a local player. Send your changes back in one prompt.**
 
@@ -24,7 +28,7 @@ No account, no upload, no server in the cloud. Everything stays on your computer
 You need [Claude Code](https://claude.com/claude-code), [Node.js](https://nodejs.org) 18 or newer, and [ffmpeg](https://ffmpeg.org).
 
 ```bash
-git clone https://github.com/jasonlee-breadcrumb/motion-os ~/.claude/skills/motion-os
+git clone https://github.com/zhiyao/motion-os-axi ~/.claude/skills/motion-os
 ```
 
 That's it. Claude Code picks up the skill automatically. To use it in one project only, clone it into that project's `.claude/skills/motion-os` instead.
@@ -118,4 +122,4 @@ examples/qbot-tag/    example project: reel.json, video.mp4, assets/
 docs/                 screenshots
 ```
 
-Made by [Jason Lee](https://www.youtube.com/@JasonLeeFinance). MIT license.
+Maintained by [Zhiyao](https://github.com/zhiyao). Based on [Motion OS](https://github.com/jasonlee-breadcrumb/motion-os) by [Jason Lee](https://www.youtube.com/@JasonLeeFinance). MIT license.
