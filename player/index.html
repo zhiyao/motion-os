@@ -366,7 +366,7 @@ details.bub summary{cursor:pointer;display:grid;gap:4px} details.bub summary::-w
       <div class="hint" id="presHint" hidden>Your feedback waits here. Start an agent with <code>bin/monitor-motion-os</code> or ask Claude to poll.</div>
       <div class="log" id="convoLog"><div id="convoT"></div><div id="convoQ"></div></div>
       <div class="composer">
-        <textarea id="msgIn" rows="2" placeholder="Message the agent… Enter queues it, Shift+Enter for a new line"></textarea>
+        <textarea id="msgIn" rows="2" placeholder="Message the agent… Send to Agent sends it. Enter queues it to send with more, Shift+Enter for a new line"></textarea>
         <div class="row"><span id="queueN">Nothing queued</span><button class="btn primary" id="sendBtn" disabled>Send to Agent</button></div>
         <div class="err" id="sendErr" hidden></div>
       </div>
@@ -989,8 +989,10 @@ function batchList(b){
 }
 function entryHTML(e){
   if (e.role === 'agent') return `<div class="bub agent"><div class="bh"><b>Agent</b><span class="mono">${tm(e.at)}</span></div><div class="md">${md(e.text)}</div></div>`;
-  const b = e.batch || {}, parts = [['change', b.edits], ['note', b.notes], ['trim', b.trims], ['link', b.links], ['message', b.messages]].filter(([, a]) => a?.length).map(([w, a]) => `${a.length} ${w}${a.length > 1 ? 's' : ''}`);
-  return `<details class="bub me"><summary><span class="bh"><b>You</b><span class="mono">${tm(e.at)}</span><span class="bst ${esc(e.status || 'sent')}">${({picked: 'Picked up', done: 'Done'})[e.status] || 'Sent'}</span></span><span class="sum">${esc(parts.join(', ') || 'Empty send')}</span></summary>${batchList(b)}</details>`;
+  // typed messages read like chat; everything else is summarised, with the full list on expand
+  const b = e.batch || {}, msgs = b.messages || [], parts = [['change', b.edits], ['note', b.notes], ['trim', b.trims], ['link', b.links]].filter(([, a]) => a?.length).map(([w, a]) => `${a.length} ${w}${a.length > 1 ? 's' : ''}`);
+  const rest = {...b, messages: []};
+  return `<details class="bub me"><summary><span class="bh"><b>You</b><span class="mono">${tm(e.at)}</span><span class="bst ${esc(e.status || 'sent')}">${({picked: 'Picked up', done: 'Done'})[e.status] || 'Sent'}</span></span>${msgs.map(m => `<div class="md">${md(m)}</div>`).join('')}${parts.length || !msgs.length ? `<span class="sum">${esc(parts.join(', ') || 'Empty send')}</span>` : ''}</summary>${batchList(rest)}</details>`;
 }
 // The transcript and the queue are separate containers: a refresh rewrites #convoT only, so typing in #convoQ is never lost.
 function renderTranscript(entries, presence, waiting){
@@ -1018,8 +1020,8 @@ function renderQueue(){
   st.links.forEach((l, i) => { if (!l.sent) out.push(`<div class="bub q"><div class="bh"><b>Link</b><span class="mono" style="overflow:hidden;text-overflow:ellipsis">${esc(l.url)}</span><span class="bst">${lab}</span><button class="x" data-del-link="${i}" aria-label="Remove link">×</button></div></div>`); });
   (st.messages || []).forEach(m => out.push(`<div class="bub q" data-msg="${m.id}"><div class="bh"><b>Message</b><span class="bst">${lab}</span><button class="x" data-del-msg="${m.id}" aria-label="Remove message">×</button></div><div class="md">${md(m.text)}</div></div>`));
   $('#convoQ').innerHTML = out.join('');
-  const n = queueCount(); $('#queueN').textContent = n ? `${n} queued` : 'Nothing queued';
-  $('#sendBtn').disabled = !n || convo.sending; $('#sendBtn').textContent = convo.sending ? 'Sending…' : 'Send to Agent';
+  const n = queueCount(), typed = !!$('#msgIn').value.trim(); $('#queueN').textContent = n ? `${n} queued` : 'Nothing queued';
+  $('#sendBtn').disabled = !(n || typed) || convo.sending; $('#sendBtn').textContent = convo.sending ? 'Sending…' : 'Send to Agent';
   renderPresence();
 }
 function pollTranscript(){
@@ -1035,12 +1037,14 @@ $('#convo').addEventListener('click', ev => {
   if (b = q('[data-del-msg]')) { st.messages = st.messages.filter(m => m.id !== +b.dataset.delMsg); markDirty(); return renderQueue(); }
 });
 $('#convo').addEventListener('input', ev => { const d = ev.target.dataset; if (d.noteText) { st.notes.find(n => n.id === +d.noteText).text = ev.target.value; markDirty(); } });
-$('#msgIn').addEventListener('keydown', ev => {
-  if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
-  ev.preventDefault(); const text = ev.target.value.trim(); if (!text) return;
-  st.messages = [...(st.messages || []), {id: Date.now(), text}]; ev.target.value = ''; markDirty(); renderQueue();
-  $('#convoLog').scrollTop = $('#convoLog').scrollHeight;
-});
+// Moves the composer's text into the queue as a message. Returns whether there was any.
+function queueTyped(){
+  const box = $('#msgIn'), text = box.value.trim(); if (!text) return false;
+  st.messages = [...(st.messages || []), {id: Date.now(), text}]; box.value = ''; markDirty(); renderQueue();
+  $('#convoLog').scrollTop = $('#convoLog').scrollHeight; return true;
+}
+$('#msgIn').addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); queueTyped(); } });
+$('#msgIn').addEventListener('input', () => { $('#sendBtn').disabled = !(queueCount() || $('#msgIn').value.trim()) || convo.sending; });
 function focusNote(id){ const n = st.notes.find(n => n.id === id); ui.selNote = id; pause(); seek(n.t); openConvo(); renderQueue();
   document.querySelector(`[data-note-bub="${id}"]`)?.scrollIntoView({block:'nearest', behavior:'smooth'}); }
 
@@ -1075,6 +1079,7 @@ function feedback(){
 }
 async function sendFeedback(){
   if (convo.sending) return;
+  queueTyped();   // text still in the composer goes with this Send
   if (!queueCount()) return toast('Nothing to send yet. Edit something, press N to pin a note, or type a message.');
   convo.sending = true; renderQueue(); $('#sendErr').hidden = true;
   try {
@@ -1294,6 +1299,15 @@ async function selftest(){
     window.fetch = async (u, o) => { if (o?.method === 'POST') { posts++; await new Promise(r => setTimeout(r, 50)); } return {ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})}; };
     try { await Promise.all([sendFeedback(), sendFeedback()]); } finally { window.fetch = rf; }
     eq([posts, st.messages.length, queueCount()], [1, 0, 0], 'one send, queue emptied');
+    // typing in the composer and pressing Send to Agent sends that text (no Enter needed)
+    st.over = {}; st.messages = []; st.notes = st.notes.filter(n => st.sent.includes(n.id)); st.links = []; renderQueue();
+    const mi = document.querySelector('#msgIn'); mi.value = 'hello'; mi.dispatchEvent(new Event('input', {bubbles: true}));
+    eq(document.querySelector('#sendBtn').disabled, false, 'typing enables Send to Agent');
+    let sentBody = null; const rf3 = window.fetch; window.fetch = async (u, o) => { if (o?.method === 'POST') sentBody = JSON.parse(o.body); return {ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})}; };
+    try { await sendFeedback(); } finally { window.fetch = rf3; }
+    eq([sentBody?.messages, mi.value, st.messages.length], [['hello'], '', 0], 'the typed text is sent and the box clears');
+    const bub = document.createElement('div'); bub.innerHTML = entryHTML({role: 'user', at: new Date().toISOString(), status: 'sent', batch: {messages: ['hello'], notes: [{n: 1, t: 1, text: 'x'}]}});
+    eq([bub.querySelector('summary .md')?.textContent, bub.querySelector('summary .sum')?.textContent], ['hello', '1 note'], 'a sent message shows its text in the bubble');
     // things queued while a send is in flight stay queued
     st.messages = [{id: 7, text: 'first'}]; let release; const rf2 = window.fetch;
     window.fetch = (u, o) => o?.method === 'POST' ? new Promise(r => release = () => r({ok: true, json: async () => ({})})) : Promise.resolve({ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})});
