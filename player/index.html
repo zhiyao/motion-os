@@ -421,8 +421,10 @@ let music = null;                 // <audio> for an uploaded music track
 
 // Edits and notes live in this browser, per project. When a new version loads, what was already sent is cleared.
 const KEY = () => 'motionos:' + P.id;
-// A move on an element animated by reel.json keys only applies while that animation is removed; drop any other leftover move.
-function pruneReelBoxes(){ for (const e of allEls()) if (e.keys?.length && !(`${e.id}.@keys` in st.over)) delete st.over[`${e.id}.@box`]; }
+// A move on an element animated by reel.json keys only applies while that animation is removed. A move left over from before
+// the element got its keys is unsent work (sent moves were already dropped by keepAfterNewVersion), so keep it and make the
+// removal explicit: the queue shows "remove the animation" + the move, and Undo brings the new animation back.
+function pruneReelBoxes(){ for (const e of allEls()) if (e.keys?.length && `${e.id}.@box` in st.over && !(`${e.id}.@keys` in st.over)) st.over[`${e.id}.@keys`] = []; }
 // Edits to keep when a new version loads: anything not yet sent as-is. Keyframes sent in any form are dropped,
 // because the new code already animates the sent ones and re-applying a changed set would add the motion twice.
 const keepAfterNewVersion = (over, snap) => Object.fromEntries(Object.entries(over).filter(([k, v]) =>
@@ -1173,7 +1175,10 @@ async function selftest(){
       setKeys(RE(), []); vid.currentTime = re.t[0] + 0.5; moveTo(RE(), [5, 5, re.box[2], re.box[3]]);
       eq(liveBoxes()[re.id], {box: re.box, keys: [{t: 0, box: [5, 5, re.box[2], re.box[3]]}]}, 'removed animation + move reaches the renderer as a held box');
       undoPath(`${re.id}.@keys`); eq([`${re.id}.@box` in st.over, liveBoxes()[re.id]], [false, undefined], 'undoing the removal clears the move');
-      st.over = {[`${re.id}.@box`]: [1, 1, 10, 10]}; pruneReelBoxes(); eq(`${re.id}.@box` in st.over, false, 'a stale move on a reel-animated element is pruned');
+      // an unsent move on an element a new version just animated is kept, as "remove the animation and hold here" (Undo brings the animation back)
+      st.over = {[`${re.id}.@box`]: [1, 1, 10, 10]}; pruneReelBoxes();
+      eq([st.over[`${re.id}.@keys`], st.over[`${re.id}.@box`], liveBoxes()[re.id]], [[], [1, 1, 10, 10], {box: re.box, keys: [{t: 0, box: [1, 1, 10, 10]}]}], 'an unsent move survives a new version that animates the element');
+      undoPath(`${re.id}.@keys`); eq([elKeys(RE()), `${re.id}.@box` in st.over], [RK, false], 'Undo restores the new animation');
     } finally { delete re.keys; }
     // typing a keyframe time that passes through a reorder ("1" on the way to "12") must only change that keyframe
     setKeys(e, [{t:fps1(T0), box:e.box}, {t:fps1(T1), box:[5, 6, e.box[2], e.box[3]]}]);
