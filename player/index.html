@@ -1032,6 +1032,8 @@ $('#convo').addEventListener('click', ev => {
   if (b = q('[data-undo]')) return undoPath(b.dataset.undo);
   if (b = q('[data-qsel]')) { const e = elById(b.dataset.qsel); if (e) { setMode('edit'); selectEl(e.id); } return; }
   if (b = q('[data-go-note]')) return focusNote(+b.dataset.goNote);
+  // a queued item is already in an in-flight request, so removing it now would leave the agent with something the user cancelled
+  if (convo.sending && q('[data-del-note],[data-del-link],[data-del-msg]')) return toast('Sending… remove it again in a moment.');
   if (b = q('[data-del-note]')) { st.notes = st.notes.filter(n => n.id !== +b.dataset.delNote); markDirty(); return renderAll(); }
   if (b = q('[data-del-link]')) { st.links.splice(+b.dataset.delLink, 1); markDirty(); return renderAll(); }
   if (b = q('[data-del-msg]')) { st.messages = st.messages.filter(m => m.id !== +b.dataset.delMsg); markDirty(); return renderQueue(); }
@@ -1315,6 +1317,11 @@ async function selftest(){
     // Undo is held while a send is in flight, so the agent never gets an edit the user already undid
     st.over = {[`${s0.id}.@len`]: L0}; convo.sending = true; undoPath(`${s0.id}.@len`); convo.sending = false;
     eq(`${s0.id}.@len` in st.over, true, 'Undo waits while a send is in flight');
+    // deleting a queued item is held while a send is in flight (it's already in the request)
+    st.messages = [{id: 9, text: 'keep me'}]; st.notes = [{id: 902, t: 1, x: 1, y: 1, el: null, text: 'n'}]; st.sent = []; st.links = [{url: 'https://a.example/x'}]; renderQueue(); convo.sending = true;
+    for (const sel of ['[data-del-msg="9"]', '[data-del-note="902"]', '[data-del-link="0"]']) document.querySelector(`#convoQ ${sel}`)?.click();
+    convo.sending = false;
+    eq([st.messages.length, st.notes.length, st.links.length], [1, 1, 1], 'queued items cannot be deleted while a send is in flight');
     // a note edited while its send is in flight stays queued with the new text
     st.over = {}; st.messages = []; st.notes = [{id: 801, t: 1, x: 1, y: 1, el: null, text: 'old'}]; st.sent = []; let rel2; const rf4 = window.fetch;
     window.fetch = (u, o) => o?.method === 'POST' ? new Promise(r => rel2 = () => r({ok: true, json: async () => ({})})) : Promise.resolve({ok: true, json: async () => ({entries: [], presence: 'idle', waiting: 0})});

@@ -55,6 +55,9 @@ export async function selftest(){
   r = good(); delete r.scenes[1].els[0].id; eq(msgs(r), ['error S2: an element has no id'], 'element without id');
   r = good(); delete r.scenes[1].els[0].t; eq(msgs(r), ['error b: t must be [start, end] in seconds'], 'element without t');
   r = good(); r.src = '../v.mp4'; eq(msgs(r), ['error reel: src ../v.mp4 is outside the project'], 'paths may not leave the project');
+  r = good(); r.scenes[1].t = [10, 4]; eq(msgs(r).includes('error S2: t must be [start, end] in seconds'), true, 'a reversed scene span is reported');
+  r = good(); r.scenes[1].els[0].t = [6, 6]; eq(msgs(r), ['error b: t must be [start, end] in seconds'], 'a zero-length element span is reported');
+  r = good(); delete r.scenes[1].els[0].props; eq(msgs(r), ['error b: props must be an object'], 'an element without props is reported');
   r = good(); r.live = 'live.js'; r.export = {}; eq(msgs(r, {exists: p => p !== 'live.js'}), ['warn reel: live bundle live.js not found', 'warn reel: export has no cmd'], 'live and export');
 
   // store: registry and queue, in a temp home and project

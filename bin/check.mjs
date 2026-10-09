@@ -13,7 +13,7 @@ export function checkReelData(r, {exists = () => true, mp4Duration = null} = {})
   if (!Array.isArray(r.scenes)) return P;
   if (!r.scenes.length) { err('reel', 'needs at least one scene'); return P; }
   const tol = 1 / (r.fps || 30) + 1e-6, ids = new Set(), seen = id => { if (ids.has(id)) err(id, 'duplicate id'); ids.add(id); };
-  const span = t => Array.isArray(t) && t.length === 2 && t.every(n => typeof n === 'number');
+  const span = t => Array.isArray(t) && t.length === 2 && t.every(n => typeof n === 'number' && Number.isFinite(n)) && t[1] > t[0];   // end after start
   r.scenes.forEach((s, i) => {
     if (!s || typeof s !== 'object') return err(`scene ${i + 1}`, 'must be an object');
     if (typeof s.id !== 'string' || !s.id) err(`scene ${i + 1}`, 'missing id'); else seen(s.id);
@@ -27,6 +27,7 @@ export function checkReelData(r, {exists = () => true, mp4Duration = null} = {})
       if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !e.id) { err(s.id ?? `scene ${i + 1}`, 'an element has no id'); continue; }
       seen(e.id);
       if (!span(e.t)) err(e.id, 't must be [start, end] in seconds');
+      if (!e.props || typeof e.props !== 'object' || Array.isArray(e.props)) err(e.id, 'props must be an object');
       const b = e.box;
       if (b != null && !(Array.isArray(b) && b.length === 4 && b.every(n => typeof n === 'number' && n >= 0 && n <= 100) && b[0] + b[2] <= 100.5 && b[1] + b[3] <= 100.5))
         err(e.id, `box ${JSON.stringify(b)} is not [x, y, w, h] inside 0-100`);
