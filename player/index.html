@@ -1,12 +1,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Motion OS</title>
+<script>
+try {
+  const theme = localStorage.getItem('motion-os-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+} catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;800&family=Bricolage+Grotesque:wght@500;700;800&family=Instrument+Serif&family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap">
 <style>
 /* Motion OS player. Layout: one calm desk. Player + timeline on the left, a single panel on the right. Labels short, explanations live in (i) tips. */
 :root{
+  color-scheme:light;
   --bg:#ECEEF2; --panel:#FFFFFF; --panel-2:#F5F6F8; --line:#E1E4EA; --line-2:#CED3DB;
   --ink:#14161B; --mute:#646C7A; --faint:#9AA1AD;
   --accent:#2F5BFF; --accent-ink:#FFFFFF; --accent-soft:#E7ECFF;
@@ -53,6 +60,14 @@ button{cursor:pointer}
 .saved{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:6px;white-space:nowrap}
 .saved i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
 .saved.dirty i{background:var(--pin)}
+.theme-toggle{display:inline-flex;align-items:center;gap:8px;padding:4px;background:none;border:none;color:var(--mute);cursor:pointer;flex:none}
+.theme-toggle:hover{color:var(--ink)}
+.theme-toggle svg{width:18px;height:18px}
+.theme-toggle-track{position:relative;width:52px;height:28px;border-radius:999px;background:var(--accent)}
+.theme-toggle-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s steps(4)}
+.theme-toggle-track[data-on="true"] .theme-toggle-knob{transform:translateX(24px)}
+.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:999px}
+@media (prefers-reduced-motion:reduce){.theme-toggle-knob{transition:none}}
 .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);font-weight:500;white-space:nowrap}
 .btn:hover{background:var(--panel-2)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -332,6 +347,11 @@ details.bub summary{cursor:pointer;display:grid;gap:4px} details.bub summary::-w
     </div>
     <div class="spacer"></div>
     <div class="saved"><i></i><span>Auto-saved</span></div>
+    <button class="theme-toggle" id="themeBtn" type="button" role="switch" aria-label="Light mode" aria-checked="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg>
+      <span class="theme-toggle-track" data-on="false"><span class="theme-toggle-knob"></span></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42m0-14.14-1.42 1.42m-11.3 11.3-1.42 1.42"/></svg>
+    </button>
     <button class="btn" id="convoBtn" data-tip="Open the conversation with the agent">Conversation <span class="n" id="convoN">0</span></button>
     <button class="btn" id="exportBtn" hidden data-tip="Renders the video with your changes baked in and saves a new mp4. The original is never overwritten.">Export MP4</button>
   </header>
@@ -399,6 +419,24 @@ const TIPS = {
 
 /* ================= state ================= */
 const $ = s => document.querySelector(s);
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+function isDarkTheme() {
+  return document.documentElement.dataset.theme === 'dark' ||
+    (!document.documentElement.dataset.theme && systemTheme.matches);
+}
+function renderThemeToggle() {
+  $('#themeBtn').setAttribute('aria-checked', String(!isDarkTheme()));
+  $('.theme-toggle-track').dataset.on = String(!isDarkTheme());
+  $('#themeBtn').title = isDarkTheme() ? 'Switch to light mode' : 'Switch to dark mode';
+}
+$('#themeBtn').addEventListener('click', () => {
+  const theme = isDarkTheme() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('motion-os-theme', theme); } catch (e) {}
+  renderThemeToggle();
+});
+systemTheme.addEventListener('change', renderThemeToggle);
+renderThemeToggle();
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const ease = p => 1 - Math.pow(1 - clamp(p), 3);
