@@ -421,6 +421,8 @@ let music = null;                 // <audio> for an uploaded music track
 
 // Edits and notes live in this browser, per project. When a new version loads, what was already sent is cleared.
 const KEY = () => 'motionos:' + P.id;
+// A move on an element animated by reel.json keys only applies while that animation is removed; drop any other leftover move.
+function pruneReelBoxes(){ for (const e of allEls()) if (e.keys?.length && !(`${e.id}.@keys` in st.over)) delete st.over[`${e.id}.@box`]; }
 // Edits to keep when a new version loads: anything not yet sent as-is. Keyframes sent in any form are dropped,
 // because the new code already animates the sent ones and re-applying a changed set would add the motion twice.
 const keepAfterNewVersion = (over, snap) => Object.fromEntries(Object.entries(over).filter(([k, v]) =>
@@ -430,7 +432,7 @@ function loadProject(){
   try { st = JSON.parse(localStorage.getItem(KEY()) || 'null'); } catch (e) { st = null; }
   st = Object.assign({over:{}, notes:JSON.parse(JSON.stringify(P.notes || [])), status:{}, links:[], sent:[], sentSnap:{}, messages:[], ver}, st || {});
   if (st.ver !== ver) {
-    st.over = keepAfterNewVersion(st.over, st.sentSnap);
+    st.over = keepAfterNewVersion(st.over, st.sentSnap); pruneReelBoxes();
     st.notes = st.notes.filter(n => !st.sent.includes(n.id)); st.links = st.links.filter(l => !l.sent);
     st.sent = []; st.sentSnap = {}; st.ver = ver;
   }
@@ -450,7 +452,8 @@ const elById = id => allEls().find(e => e.id === id);
 const pv = (e, k) => get(`${e.id}.${k}`, e.props[k].v);
 const elTime = e => get(`${e.id}.@time`, e.t);
 const fps1 = t => Math.round(t * P.fps) / P.fps;
-const elKeys = e => get(`${e.id}.@keys`, null);
+// An element's keyframes: the player's edit if any (an empty edit means "no animation"), else reel.json's `keys`.
+const elKeys = e => { const k = get(`${e.id}.@keys`, e.keys || null); return k && k.length ? k : null; };
 const elBox = e => { const k = elKeys(e); return k ? keyBox(k, now()) : get(`${e.id}.@box`, e.box); };
 const brandColor = id => { const c = P.brand.colors.find(c => c.id === id); return c ? get('brand.color.' + id, c.v) : id; };
 const color = v => typeof v === 'string' && v.startsWith('brand.') ? brandColor(v.slice(6)) : v;
@@ -532,8 +535,9 @@ function liveBoxes(){  // edited boxes the composition needs: id -> [base box, n
   const b = {};
   for (const e of allEls()) {
     if (!e.box) continue;
-    const k = elKeys(e), m = get(`${e.id}.@box`, null);
-    if (k) b[e.id] = {box:e.box, keys:k}; else if (m) b[e.id] = [...e.box, ...m];
+    const k = `${e.id}.@keys` in st.over ? st.over[`${e.id}.@keys`] : null, m = get(`${e.id}.@box`, null);   // reel keys: Ed reads them itself
+    // a removed reel animation plus a move holds the element at the moved box; a move never overrides reel keys on its own
+    if (k) b[e.id] = {box:e.box, keys: k.length ? k : m ? [{t: 0, box: m}] : []}; else if (m && !e.keys?.length) b[e.id] = [...e.box, ...m];
   }
   return b;
 }
@@ -590,7 +594,7 @@ function drawGhosts(){
     keep.add(e.id);
     let g = layer.querySelector(`[data-g="${e.id}"]`);
     if (!g) { g = document.createElement('div'); g.dataset.g = e.id; g.innerHTML = '<div class="was"></div><canvas class="ghost"></canvas>'; layer.appendChild(g); }
-    const [was, cv] = g.children, o = e.box, pos = (el, x) => Object.assign(el.style, {left:x[0] + '%', top:x[1] + '%', width:x[2] + '%', height:x[3] + '%'});
+    const [was, cv] = g.children, o = e.keys?.length ? keyBox(e.keys, now()) : e.box, pos = (el, x) => Object.assign(el.style, {left:x[0] + '%', top:x[1] + '%', width:x[2] + '%', height:x[3] + '%'});
     pos(was, o); pos(cv, b);
     const w = Math.max(1, Math.round(b[2] / 100 * r.width * dpr)), h = Math.max(1, Math.round(b[3] / 100 * r.height * dpr));
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -732,7 +736,7 @@ function scenePane(){
 function elCard(e){
   return `<div class="el ${ui.sel === e.id ? 'sel' : ''} ${elEdited(e) ? 'edited' : ''}" data-id="${e.id}">
     <button class="elh" data-pick="${e.id}"><span class="ico"><svg viewBox="0 0 16 16">${elIcon(e)}</svg></span><b>${esc(e.label)}</b><span class="edot"></span><svg class="chev" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></button>
-    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${elKeys(e) ? keysHTML(e) : boxHTML(e)}${timingHTML(e)}</div>` : ''}
+    ${ui.sel === e.id ? `<div class="fields">${Object.entries(e.props).map(([k, p]) => fieldHTML(e, k, p)).join('')}${elKeys(e) ? keysHTML(e) : (`${e.id}.@keys` in st.over ? `<div class="f changed"><div class="fl">Animation removed<span class="sp"></span><button class="undo" data-undo="${e.id}.@keys">Undo</button></div></div>` : '') + boxHTML(e)}${timingHTML(e)}</div>` : ''}
   </div>`;
 }
 function fieldHTML(e, k, p){
@@ -769,7 +773,7 @@ function boxHTML(e){
 function keysHTML(e){
   const keys = elKeys(e);
   const n = (i, ix, l, v, step) => `<label class="f" style="gap:2px"><span class="fl" style="min-height:0">${i ? '' : l}</span><input type="number" step="${step}" data-key="${e.id}" data-i="${i}" data-ix="${ix}" value="${v}"></label>`;
-  return `<div class="f changed"><div class="fl">Keyframes<button class="info" data-tip-id="keys">i</button><span class="sp"></span><button class="undo" data-undo="${e.id}.@keys">Undo</button></div>
+  return `<div class="f ${`${e.id}.@keys` in st.over ? 'changed' : ''}"><div class="fl">Keyframes<button class="info" data-tip-id="keys">i</button><span class="sp"></span><button class="undo" data-undo="${e.id}.@keys">Undo</button></div>
     ${keys.map((k, i) => `<div class="row2" style="grid-template-columns:auto 1.3fr 1fr 1fr 1fr 16px;align-items:end"><button class="kf-go" data-seek="${k.t}" aria-label="Go to keyframe">◆</button>${n(i, 't', 'Time', +toEd(k.t).toFixed(2), +(1 / P.fps).toFixed(4))}${n(i, 0, 'X', k.box[0], 0.5)}${n(i, 1, 'Y', k.box[1], 0.5)}${n(i, 's', 'Scale %', Math.round(k.box[2] / e.box[2] * 100), 5)}<button class="x" data-del-key="${e.id}" data-i="${i}" aria-label="Delete keyframe">×</button></div>`).join('')}
     ${keys.length < 2 ? `<div class="fl">Go to another moment and press K, or drag it, to add the second keyframe.</div>` : ''}</div>`;
 }
@@ -827,14 +831,17 @@ function mediaPane(){
 }
 /* panel events */
 function changed(){ renderTL(); renderHots(); markDirty(); renderQueue(); }
-function undoPath(path){ const t0 = now(); delete st.over[path]; if (path.endsWith('.@len')) seek(t0);
+// Undoing a keyframe edit also drops a move: a move on a reel-animated element only made sense with the animation removed.
+function undoPath(path){ const t0 = now(); delete st.over[path]; if (path.endsWith('.@keys')) delete st.over[path.replace(/@keys$/, '@box')]; if (path.endsWith('.@len')) seek(t0);
   if (path === 'audio.music' || path === 'brand.logo') setupMusic(); renderPane(); changed(); }
 function touchScene(sid){ if (sid && st.status[sid] === 'review') st.status[sid] = 'changes'; }
 /* keyframes: "<id>.@keys" = [{t, box}], 1 or 2, sorted. Replaces "<id>.@box" for that element. */
 const onKey = (keys, t) => keys ? keys.findIndex(k => Math.abs(k.t - t) < 0.5 / P.fps) : -1;
 function setKeys(e, keys){
   delete st.over[`${e.id}.@box`];
-  if (keys.length) st.over[`${e.id}.@keys`] = [...keys].sort((a, b) => a.t - b.t); else delete st.over[`${e.id}.@keys`];
+  const sorted = [...keys].sort((a, b) => a.t - b.t), base = e.keys || null;
+  if (base ? JSON.stringify(sorted) === JSON.stringify(base) : !sorted.length) delete st.over[`${e.id}.@keys`];   // same as reel.json, or nothing to say
+  else st.over[`${e.id}.@keys`] = sorted;                                                                        // includes [] = remove the reel animation
   touchScene(e.s); markDirty();
 }
 // Add a keyframe at t (default: now, with the box shown now). On a keyframe: update it. With 2 already: replace the nearer.
@@ -1015,6 +1022,7 @@ function focusNote(id){ const n = st.notes.find(n => n.id === id); ui.selNote = 
 
 /* ================= send to Claude: structured feedback the agent receives with `motion-os-axi poll` ================= */
 const boxStr = b => `[${b.join(' ')}]`;
+const keysStr = ks => ks.map(x => `${+x.t.toFixed(2)}s ${boxStr(x.box)}`).join(' -> ');
 function editRow(path, v){
   const show = x => Array.isArray(x) ? x.map(r => Object.values(r).join(' | ')).join(' / ') : typeof x === 'string' && x.includes('/') ? assetName(x) : typeof x === 'string' ? x : JSON.stringify(x);
   const style = path.startsWith('brand.color.') ? ['Style', `${P.brand.colors.find(c => c.id === path.slice(12)).name} color (used everywhere)`]
@@ -1022,8 +1030,10 @@ function editRow(path, v){
     : path === 'audio.music' ? ['Audio', 'Music track'] : path === 'audio.musicVol' ? ['Audio', 'Music volume'] : path === 'audio.sfxVol' ? ['Audio', 'Effects volume'] : null;
   if (style) return {t: null, scene: '', element: style[0], field: style[1], from: show(baseOf(path)), to: show(v), src: ''};
   const [id, k] = path.split('.'), e = elById(id), row = {t: +elTime(e)[0].toFixed(2), scene: e.s, element: e.label, src: e.src || ''};
-  if (k === '@keys') return v.length === 1 ? {...row, t: v[0].t, field: 'size+position', from: boxStr(e.box), to: boxStr(v[0].box)}
-    : {...row, t: v[0].t, field: 'keyframes', from: boxStr(e.box), to: v.map(x => `${+x.t.toFixed(2)}s ${boxStr(x.box)}`).join(' -> ') + ' (ease in-out)'};
+  if (k === '@keys') { const from = e.keys?.length ? keysStr(e.keys) : boxStr(e.box);
+    if (!v.length) return {...row, field: 'keyframes', from, to: 'none (remove the animation)'};
+    return v.length === 1 && !e.keys?.length ? {...row, t: v[0].t, field: 'size+position', from: boxStr(e.box), to: boxStr(v[0].box)}
+      : {...row, t: v[0].t, field: 'keyframes', from, to: keysStr(v) + ' (ease in-out)'}; }
   if (k === '@box') return {...row, field: 'size+position', from: boxStr(e.box), to: `${boxStr(v)} scale ${Math.round(v[2] / e.box[2] * 100)}%`};
   if (k === '@time') return {...row, field: 'timing (s)', from: e.t.join('-'), to: v.join('-')};
   return {...row, field: e.props[k].type === 'motion' ? 'motion' : e.props[k].label, from: show(baseOf(path)), to: show(v)};
@@ -1140,6 +1150,31 @@ async function selftest(){
     const kr = editRow(`${id}.@keys`, elKeys(e));
     eq([kr.field, kr.to.startsWith(`${+fps1(T0).toFixed(2)}s [${e.box.join(' ')}] -> `), kr.to.endsWith('(ease in-out)')], ['keyframes', true, true], 'feedback keyframes row');
     st.over = {}; set(`${id}.@box`, [1, 2, 3, 4], e.box); eq(liveBoxes()[id], [...e.box, 1, 2, 3, 4], 'old payload for plain moves');
+    // keyframes from reel.json
+    const rs = P.scenes.find(s => s.els.some(x => x.box && x.t[1] - x.t[0] > 1.5)), re = rs.els.find(x => x.box && x.t[1] - x.t[0] > 1.5);
+    const RK = [{t: fps1(re.t[0] + 0.2), box: re.box}, {t: fps1(re.t[0] + 1.2), box: [re.box[0], re.box[1] - 10, re.box[2] * 1.2, re.box[3] * 1.2].map(v => Math.round(v * 10) / 10)}];
+    re.keys = RK; st.over = {}; const RE = () => elById(re.id);
+    try {
+      eq(elKeys(RE()), RK, "reel keys are the element's keyframes");
+      vid.currentTime = (RK[0].t + RK[1].t) / 2; eq(elBox(RE()), keyBox(RK, now()), 'box follows the reel keys');
+      Object.assign(ui, {sel: re.id, scene: rs.id, tab: 'scene'}); renderTL(); renderPane();
+      eq([document.querySelectorAll('#tl .kf').length, !!document.querySelector(`[data-key="${re.id}"]`), document.querySelector(`[data-undo="${re.id}.@keys"]`)?.closest('.f')?.classList.contains('changed')], [2, true, false], 'diamonds and an unchanged Keyframes section');
+      eq(liveBoxes()[re.id], undefined, 'nothing sent to the renderer without an edit');
+      vid.currentTime = RK[1].t; moveTo(RE(), [5, 5, re.box[2], re.box[3]]);
+      eq(st.over[`${re.id}.@keys`]?.[1].box, [5, 5, re.box[2], re.box[3]], 'dragging on a reel keyframe makes an edit');
+      eq(editRow(`${re.id}.@keys`, st.over[`${re.id}.@keys`]).from, `${+RK[0].t.toFixed(2)}s [${RK[0].box.join(' ')}] -> ${+RK[1].t.toFixed(2)}s [${RK[1].box.join(' ')}]`, 'poll row from is the reel keys');
+      setKeys(RE(), RK); eq(`${re.id}.@keys` in st.over, false, 'setting the reel keys back removes the edit');
+      setKeys(RE(), []); eq([st.over[`${re.id}.@keys`], elKeys(RE()), elBox(RE())], [[], null, re.box], 'deleting both stores an explicit removal');
+      renderPane(); eq(!!document.querySelector(`.f.changed [data-undo="${re.id}.@keys"]`), true, 'a removal can be undone from the card');
+      eq([liveBoxes()[re.id], editRow(`${re.id}.@keys`, []).to], [{box: re.box, keys: []}, 'none (remove the animation)'], 'removal goes to the renderer and the agent');
+      eq(keepAfterNewVersion({[`${re.id}.@keys`]: []}, {[`${re.id}.@keys`]: []}), {}, 'a sent keyframe edit is dropped on the new version');
+      st.over = {}; eq(elKeys(RE()), RK, 'after the drop the reel keys show again');
+      // a removal plus a move: sent as "hold at the moved box"; undoing the removal clears the move; stale moves are pruned on load
+      setKeys(RE(), []); vid.currentTime = re.t[0] + 0.5; moveTo(RE(), [5, 5, re.box[2], re.box[3]]);
+      eq(liveBoxes()[re.id], {box: re.box, keys: [{t: 0, box: [5, 5, re.box[2], re.box[3]]}]}, 'removed animation + move reaches the renderer as a held box');
+      undoPath(`${re.id}.@keys`); eq([`${re.id}.@box` in st.over, liveBoxes()[re.id]], [false, undefined], 'undoing the removal clears the move');
+      st.over = {[`${re.id}.@box`]: [1, 1, 10, 10]}; pruneReelBoxes(); eq(`${re.id}.@box` in st.over, false, 'a stale move on a reel-animated element is pruned');
+    } finally { delete re.keys; }
     // typing a keyframe time that passes through a reorder ("1" on the way to "12") must only change that keyframe
     setKeys(e, [{t:fps1(T0), box:e.box}, {t:fps1(T1), box:[5, 6, e.box[2], e.box[3]]}]);
     Object.assign(ui, {sel:id, scene:e.s, tab:'scene'}); renderPane();

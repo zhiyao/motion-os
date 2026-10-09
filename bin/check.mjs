@@ -20,6 +20,15 @@ export function checkReelData(r, {exists = () => true, mp4Duration = null} = {})
       if (b != null && !(Array.isArray(b) && b.length === 4 && b.every(n => typeof n === 'number' && n >= 0 && n <= 100) && b[0] + b[2] <= 100.5 && b[1] + b[3] <= 100.5))
         err(e.id, `box ${JSON.stringify(b)} is not [x, y, w, h] inside 0-100`);
       if (Array.isArray(e.t) && (e.t[0] < s.t[0] - tol || e.t[1] > s.t[1] + tol)) err(e.id, `time ${e.t[0]}-${e.t[1]}s is outside ${s.id} (${s.t[0]}-${s.t[1]}s)`);
+      if (e.keys != null && e.box == null) err(e.id, 'keys need a box');
+      else if (e.keys != null) {
+        const k = e.keys, ok = Array.isArray(k) && k.length >= 1 && k.length <= 2 && k.every(x => typeof x?.t === 'number' && Array.isArray(x.box) && x.box.length === 4 && x.box.every(n => typeof n === 'number'));
+        if (!ok) err(e.id, 'keys must be 1 or 2 {t, box: [x, y, w, h]} entries');
+        else {
+          if (k[1] && k[1].t <= k[0].t) err(e.id, 'keys are not in time order');
+          if (Array.isArray(e.t) && k.some(x => x.t < e.t[0] - tol || x.t > e.t[1] + tol)) err(e.id, `a keyframe is outside its time ${e.t[0]}-${e.t[1]}s`);
+        }
+      }
       for (const [k, p] of Object.entries(e.props || {}))
         if (p.type === 'media' && typeof p.v === 'string' && p.v.includes('/') && !exists(p.v)) err(e.id, `${k}: file ${p.v} not found`);
     }

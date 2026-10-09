@@ -40,6 +40,11 @@ export async function selftest(){
   r = good(); r.scenes[1].els[0].t = [3, 9]; eq(msgs(r), ['error b: time 3-9s is outside S2 (4-10s)'], 'element time outside scene');
   r = good(); eq(msgs(r, {exists: p => p !== 'assets/a.png'}), ['error a: img: file assets/a.png not found', 'error assets: assets/a.png not found'], 'missing file');
   r = good(); eq(msgs(r, {mp4Duration: 10.3}), ['warn reel: duration 10s but v.mp4 is 10.30s'], 'mp4 duration');
+  r = good(); r.scenes[0].els[0].keys = [{t: 1, box: [10, 10, 50, 50]}, {t: 3, box: [0, -40, 80, 140]}]; eq(msgs(r), [], 'valid keys (boxes may leave the frame)');
+  r = good(); r.scenes[0].els[0].keys = [{t: 3, box: [10, 10, 50, 50]}, {t: 1, box: [10, 10, 50, 50]}]; eq(msgs(r), ['error a: keys are not in time order'], 'unsorted keys');
+  r = good(); r.scenes[0].els[0].keys = [1, 2, 3]; eq(msgs(r), ['error a: keys must be 1 or 2 {t, box: [x, y, w, h]} entries'], 'bad keys');
+  r = good(); r.scenes[0].els[0].keys = [{t: 9, box: [10, 10, 50, 50]}]; eq(msgs(r), ['error a: a keyframe is outside its time 0-4s'], 'key outside the element time');
+  r = good(); r.scenes[1].els[0].keys = [{t: 5, box: [10, 10, 50, 50]}]; eq(msgs(r), ['error b: keys need a box'], 'keys on an element without a box');
   r = good(); r.live = 'live.js'; r.export = {}; eq(msgs(r, {exists: p => p !== 'live.js'}), ['warn reel: live bundle live.js not found', 'warn reel: export has no cmd'], 'live and export');
 
   // store: registry and queue, in a temp home and project
