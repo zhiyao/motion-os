@@ -127,7 +127,7 @@ export async function selftest(){
     eq((await (await fetch(base + '/feedback')).json()).waiting, 1, 'unacked batch stays queued');
     await fetch(base + '/ack', {method: 'POST', headers: {origin: base}, body: JSON.stringify({ids: first.batches.map(b => b.id)})});
     eq((await (await fetch(base + '/feedback')).json()).waiting, 0, 'acked batch left the queue');
-    const raw = (headers, p = '/poll?ms=100') => new Promise(r => http.get({host: '127.0.0.1', port: Number(new URL(base).port), path: p, headers}, res => { res.resume(); r(res.statusCode); }));
+    const raw = (headers, p = '/poll?ms=100') => new Promise(r => http.get({host: '127.0.0.1', port: Number(new URL(base).port), path: p, headers}, res => { res.resume(); r(res.statusCode); }).on('error', e => r(e.code)));
     eq(await raw({host: 'evil.example'}), 403, 'poll refuses a foreign Host (DNS rebinding)');
     eq(await raw({'sec-fetch-site': 'cross-site'}), 403, 'poll refuses cross-site browser requests');
     // transcript and presence
@@ -150,10 +150,12 @@ export async function selftest(){
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'http://localhost:1'}, body: '{}'})).status, 403, 'a page on another localhost port is refused');
     eq([await raw({'sec-fetch-site': 'cross-site'}, '/'), await raw({'sec-fetch-site': 'cross-site'}, '/feedback')], [200, 403], 'a link from another site opens the page; endpoints stay local');
     eq([await raw({}, '/%'), (await fetch(base + '/reel.json')).status], [400, 200], 'a malformed path is a 400 and the server stays up');
+    eq([await raw({}, '/%00'), (await fetch(base + '/reel.json')).status], [400, 200], 'a NUL in the path is a 400 and the server stays up');
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'https://evil.example'}, body: '{}'})).status, 403, 'other origins refused');
   } finally { srv.kill(); }
   await new Promise(r => setTimeout(r, 300));
   eq(readPlayers()[proj], undefined, 'server removes itself on exit');
+  fs.rmSync(tmp, {recursive: true, force: true});
 
   // format: batches -> poll output, merged in order
   const fb = (v, extra) => ({payload: {title: 'Demo', id: 'demo', version: v, edits: [], notes: [], trims: [], links: [], scenes: [{id: 'S1', name: 'Intro', status: 'review'}], ...extra}});

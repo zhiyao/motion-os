@@ -382,7 +382,7 @@ const TIPS = {
   proj:'The project file (reel.json) Claude wrote when it built this video. Every text, timing and asset in the panel comes from it.',
   scene:'The pieces on screen in this scene. Click one here or in the frame to edit it.',
   status:'Approved scenes are left alone when Claude makes the next version.',
-  motion:'How it moves. Only Claude can change this, so it goes into the prompt when you Send to Claude.',
+  motion:'How it moves. Only the agent can change this, so it goes to the agent when you press Send to Agent.',
   box:'Where it sits and how big, in % of the frame. In Edit mode you can drag it on the frame instead.',
   timing:'When it appears and leaves, in seconds.',
   script:'Every word in the video, in order. The fastest way to fix copy.',
@@ -394,7 +394,7 @@ const TIPS = {
   notes:'Notes pin to an exact moment and spot. Use them for things a text box can\'t change, like motion or pacing.',
   keys:'Where it is at two moments. It glides between them with ease in-out. In Edit, press K to add one at the playhead.',
   trim:'This scene is cut short: it plays as before but stops sooner, and every later scene moves earlier. Drag its end on the timeline to change it.',
-  pending:'These reach the video when you Send to Claude and Claude re-renders it.',
+  pending:'These reach the video when you press Send to Agent and the agent re-renders it.',
 };
 
 /* ================= state ================= */
@@ -491,7 +491,8 @@ function toSrc(t){ const ls = sceneLayout(), o = ls.find(o => t < o.E + o.L) || 
 function nextAfterCut(t){ if (!isCut(t)) return null; const i = P.scenes.indexOf(sceneAt(t)); return i < P.scenes.length - 1 ? P.scenes[i + 1].t[0] : -1; }
 const openNotes = () => st.notes.filter(n => !st.sent.includes(n.id));
 const queueCount = () => pendingEdits() + openNotes().length + (st.messages?.length || 0);
-const pendingEdits = () => Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v)).length + st.links.filter(l => !l.sent).length;
+// Counts what Send would actually send: edits that still point at something, and trims that really shorten a scene.
+const pendingEdits = () => Object.entries(st.over).filter(([k, v]) => JSON.stringify(st.sentSnap[k]) !== JSON.stringify(v) && pathExists(k) && (!k.endsWith('.@len') || realTrim(k))).length + st.links.filter(l => !l.sent).length;
 
 function markDirty(){
   if (!P) return;
@@ -1306,6 +1307,7 @@ async function selftest(){
     try { st.over = {[`${nb.id}.@box`]: [1, 1, 5, 5], [`${nb.id}.@keys`]: []}; pruneMissing(); eq(Object.keys(st.over), [], 'box edits on an element that lost its box are dropped'); } finally { nbRef.box = nbBox; }
     // trims: a full-length drag stores nothing; a no-op trim is never queued or sent
     st.over = {}; setTrim({id: s0.id, t: [s0.t[0], s0.t[0] + 4.699999999999999]}, 4.7); eq(`${s0.id}.@len` in st.over, false, 'dragging back to full length stores no trim');
+    st.over = {}; st.sentSnap = {}; const qc0 = queueCount(); st.over = {[`${s0.id}.@len`]: O0 + 1}; eq(queueCount(), qc0, 'a trim not shorter than the scene is not counted as queued');
     st.over = {[`${s0.id}.@len`]: O0 + 1}; renderQueue(); eq([feedback().trims.length, document.querySelectorAll('#convoQ [data-trim-bub]').length], [0, 0], 'a trim not shorter than the scene is not queued or sent');
     // keyframe times typed in the card stay inside the element and never collide
     const ke2 = allEls().find(x => x.box && x.t[1] - x.t[0] > 2); st.over = {};

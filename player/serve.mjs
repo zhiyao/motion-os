@@ -102,6 +102,7 @@ const presence = () => waiters.some(r => !r.writableEnded && !r.destroyed) ? 'li
 
 const server = http.createServer((req, res) => {
   let url; try { url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); } catch { return res.writeHead(400).end(); }   // e.g. "/%"
+  if (url.includes('\0')) return res.writeHead(400).end();   // "/%00": fs would throw synchronously and take the server down
   // Every path needs a localhost Host (so a rebinding page can't read the page, files or .motion-os/). The endpoints also refuse
   // cross-site browser requests; the page itself may be opened from a link on another site.
   if (!hostOk(req)) return res.writeHead(403).end();
