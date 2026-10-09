@@ -2,7 +2,7 @@
 import {toon, val, trunc} from './toon.mjs';
 import {checkReelData} from './check.mjs';
 import {formatFeedback} from './format.mjs';
-import {readPlayers, addPlayer, removePlayer, readQueue, pushBatch, leaseQueue, ackQueue, appendTranscript, readTranscript, markTranscript, isWorking} from './store.mjs';
+import {readPlayers, addPlayer, removePlayer, readQueue, pushBatch, leaseQueue, ackQueue, appendTranscript, readTranscript, markTranscript, isWorking, setDelivered, takeDelivered} from './store.mjs';
 import http from 'node:http';
 import os from 'node:os';
 import fs from 'node:fs';
@@ -90,6 +90,11 @@ export async function selftest(){
   try { execFileSync(process.execPath, [cli, 'poll', proj, '--reply', 'ok', '--timeout', '1'], {env: process.env, stdio: 'pipe'}); } catch {}   // exits 1 after replying: no player to wait on
   eq([st(orphan.id), st(B.id)], ['picked', 'done'], 'a reply closes only the batch that poll delivered');
   eq([isWorking([{role: 'user', status: 'picked', pickedAt: Date.now()}]), isWorking([{role: 'user', status: 'picked', pickedAt: Date.now() - 31 * 60e3}])], [true, false], 'a pick older than 30 minutes is not "working"');
+  setDelivered(proj, ['a']); setDelivered(proj, ['b', 'a']); eq(takeDelivered(proj), ['a', 'b'], 'delivered ids accumulate across polls');
+  // a failed --reply keeps the delivered ids for the retry
+  const proj2 = path.join(tmp, 'proj2'); fs.mkdirSync(proj2); setDelivered(proj2, ['x']); addPlayer(proj2, 1);   // port 1: nothing listening
+  try { execFileSync(process.execPath, [cli, 'poll', proj2, '--reply', 'hi', '--timeout', '1'], {env: process.env, stdio: 'pipe'}); } catch {}
+  removePlayer(proj2); eq(takeDelivered(proj2), ['x'], 'a failed reply keeps the ids');
   fs.rmSync(path.join(proj, '.motion-os', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
 
   // registry: players starting at the same moment must not overwrite each other
@@ -139,6 +144,8 @@ export async function selftest(){
     eq(await raw({host: 'evil.example'}, '/transcript'), 403, 'transcript is local-only');
     eq([await raw({host: 'evil.example'}, '/.motion-os/inbox.json'), await raw({host: 'evil.example'}, '/reel.json')], [403, 403], 'every path refuses a foreign Host');
     eq((await fetch(base + '/reel.json')).status, 200, 'the player still loads its files');
+    eq([await raw({'sec-fetch-site': 'cross-site'}, '/'), await raw({'sec-fetch-site': 'cross-site'}, '/feedback')], [200, 403], 'a link from another site opens the page; endpoints stay local');
+    eq([await raw({}, '/%'), (await fetch(base + '/reel.json')).status], [400, 200], 'a malformed path is a 400 and the server stays up');
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'https://evil.example'}, body: '{}'})).status, 403, 'other origins refused');
   } finally { srv.kill(); }
   await new Promise(r => setTimeout(r, 300));

@@ -56,5 +56,8 @@ export function markTranscript(dir, pred, status){
 export const isWorking = (entries, now = Date.now()) => entries.some(e => e.role === 'user' && e.status === 'picked' && now - (e.pickedAt || 0) < 30 * 60e3);
 // The ids the last poll handed to the agent, so its --reply closes exactly those batches.
 const deliveredPath = dir => path.join(dir, '.motion-os', 'last-delivered.json');
-export function setDelivered(dir, ids){ writeJson(deliveredPath(dir), ids); }
-export function takeDelivered(dir){ const ids = readJson(deliveredPath(dir), []); try { fs.unlinkSync(deliveredPath(dir)); } catch {} return ids; }
+// Ids accumulate until a reply closes them, so a poll re-run after an interruption doesn't orphan the earlier batch.
+export function setDelivered(dir, ids){ writeJson(deliveredPath(dir), [...new Set([...readDelivered(dir), ...ids])]); }
+export const readDelivered = dir => readJson(deliveredPath(dir), []);
+export function clearDelivered(dir){ try { fs.unlinkSync(deliveredPath(dir)); } catch {} }
+export function takeDelivered(dir){ const ids = readDelivered(dir); clearDelivered(dir); return ids; }

@@ -88,7 +88,8 @@ function deliver(){
 setInterval(deliver, 5000).unref();   // re-offers batches whose lease ran out
 const sameOrigin = req => !req.headers.origin || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(req.headers.origin);
 // The feedback endpoints change state, so a page on another site (or a DNS-rebinding hostname) must not reach them.
-const localOnly = req => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '') && req.headers['sec-fetch-site'] !== 'cross-site' && sameOrigin(req);
+const hostOk = req => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '');   // blocks DNS-rebinding hostnames
+const localOnly = req => hostOk(req) && req.headers['sec-fetch-site'] !== 'cross-site' && sameOrigin(req);
 
 // Reads a request body, refusing anything over 1 MB.
 function readBody(req, res, done){
@@ -99,9 +100,11 @@ function readBody(req, res, done){
 const presence = () => waiters.some(r => !r.writableEnded && !r.destroyed) ? 'listening' : isWorking(readTranscript(dir)) ? 'working' : 'idle';
 
 const server = http.createServer((req, res) => {
-  const url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-  // Everything here is local: the page, the project's files (incl. .motion-os/ transcript and queue) and the feedback endpoints.
-  if (!localOnly(req)) return res.writeHead(403).end();
+  let url; try { url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); } catch { return res.writeHead(400).end(); }   // e.g. "/%"
+  // Every path needs a localhost Host (so a rebinding page can't read the page, files or .motion-os/). The endpoints also refuse
+  // cross-site browser requests; the page itself may be opened from a link on another site.
+  if (!hostOk(req)) return res.writeHead(403).end();
+  if (['/feedback', '/poll', '/ack', '/export', '/reply', '/transcript'].includes(url) && !localOnly(req)) return res.writeHead(403).end();
   if (url === '/ack') return readBody(req, res, body => { try { ackQueue(dir, JSON.parse(body || '{}').ids || []); res.writeHead(200, {'Content-Type': 'application/json'}).end('{"ok":true}'); } catch { res.writeHead(400).end(); } });
   if (url === '/reply') return readBody(req, res, body => {
     let text = '', ids = null; try { const j = JSON.parse(body || '{}'); text = String(j.text || '').trim(); ids = Array.isArray(j.ids) ? j.ids : null; } catch {}

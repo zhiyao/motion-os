@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn, execFile, execFileSync} from 'node:child_process';
 import {toon} from './toon.mjs';
 import {checkReel} from './check.mjs';
-import {readPlayers, readQueue, leaseQueue, ackQueue, appendTranscript, markTranscript, setDelivered, takeDelivered} from './store.mjs';
+import {readPlayers, readQueue, leaseQueue, ackQueue, appendTranscript, markTranscript, setDelivered, readDelivered, clearDelivered} from './store.mjs';
 import {formatFeedback} from './format.mjs';
 import {selftest} from './selftest.mjs';
 
@@ -80,9 +80,10 @@ async function cmdPoll(){
   if (flags.has('--reply')) {
     const text = optVal('--reply');
     if (!text || text.startsWith('--')) usage('--reply needs the text of your reply');
-    const p = player(dir), ids = takeDelivered(dir);   // close only the batches the last poll handed over
-    if (p) { const r = await fetch(p.url + '/reply', {method: 'POST', body: JSON.stringify({text, ids})}).catch(() => null); if (!r?.ok) fail('reply_failed', 'the player did not accept the reply'); }
+    const p = player(dir), ids = readDelivered(dir);   // close only the batches the last polls handed over; cleared once the reply lands
+    if (p) { const r = await fetch(p.url + '/reply', {method: 'POST', body: JSON.stringify({text, ids})}).catch(() => null); if (!r?.ok) fail('reply_failed', 'the player did not accept the reply; run the same command again'); }
     else { appendTranscript(dir, {role: 'agent', text}); markTranscript(dir, e => ids.includes(e.id), 'done'); }
+    clearDelivered(dir);
   }
   const show = batches => out(formatFeedback(batches, {full}), [
     'Apply edits exactly, then work through the notes; leave scenes with status approved untouched',

@@ -428,7 +428,9 @@ function pathExists(k){
   if (k === 'brand.logo' || k.startsWith('audio.')) return true;
   const [id, f = ''] = k.split('.');
   if (f === '@len') return !!sceneOf(id);
-  const e = elById(id); return !!e && (f.startsWith('@') || f in e.props);
+  const e = elById(id); if (!e) return false;
+  if (f === '@box' || f === '@keys') return !!e.box;   // a move or keyframes need the element to still have a box
+  return f.startsWith('@') || f in e.props;
 }
 function pruneMissing(){ for (const k of Object.keys(st.over)) if (!pathExists(k)) delete st.over[k]; st.notes.forEach(n => { if (n.el && !elById(n.el)) n.el = null; }); }
 // A move on an element animated by reel.json keys only applies while that animation is removed. A move left over from before
@@ -1292,6 +1294,8 @@ async function selftest(){
     st.over = {'gone-el.text': 'x', 'S99.@len': 3, [`${s0.id}.@len`]: L0, 'brand.color.zzz': '#fff'}; st.notes = [{id: 901, t: 1, x: 1, y: 1, el: 'gone-el', text: 'n'}];
     pruneMissing();
     eq([Object.keys(st.over), st.notes[0].el], [[`${s0.id}.@len`], null], 'edits on removed elements, scenes and brand entries are dropped');
+    const nb = allEls().find(x => x.box), nbBox = nb.box, nbRef = sceneOf(nb.s).els.find(x => x.id === nb.id); nbRef.box = null;
+    try { st.over = {[`${nb.id}.@box`]: [1, 1, 5, 5], [`${nb.id}.@keys`]: []}; pruneMissing(); eq(Object.keys(st.over), [], 'box edits on an element that lost its box are dropped'); } finally { nbRef.box = nbBox; }
     st.over = {'gone-el.text': 'x'}; let threw = false; try { renderQueue(); } catch (e) { threw = true; } eq(threw, false, 'the queue skips an edit on a removed element');
   } finally { vid = realVid; st.over = JSON.parse(saved); Object.assign(st, JSON.parse(savedQ)); markDirty(); renderAll(); }
   return 'selftest ok';
