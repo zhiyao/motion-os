@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship `bin/motion-os-axi.mjs`, a zero-dependency AXI CLI for Motion OS (status, open, check, poll, frame, export, stop, setup-hook), and make the player's Send deliver structured feedback to `poll` instead of a copy-paste prompt.
+**Goal:** Ship `bin/motion-os-axi.mjs`, a zero-dependency AXI CLI for Motion OS AXI (status, open, check, poll, frame, export, stop, setup-hook), and make the player's Send deliver structured feedback to `poll` instead of a copy-paste prompt.
 
-**Architecture:** Small focused modules in `bin/`: `toon.mjs` (output encoding), `check.mjs` (reel.json validation, pure core + fs wrapper), `store.mjs` (player registry in `~/.motion-os/players.json` and per-project feedback queue in `<project>/.motion-os/inbox.json`), `format.mjs` (turns feedback batches into TOON), and `motion-os-axi.mjs` (commands). `player/serve.mjs` gains `/feedback` and `/poll` endpoints and registers itself; the player builds a `feedback()` payload and POSTs it.
+**Architecture:** Small focused modules in `bin/`: `toon.mjs` (output encoding), `check.mjs` (reel.json validation, pure core + fs wrapper), `store.mjs` (player registry in `~/.motion-os-axi/players.json` and per-project feedback queue in `<project>/.motion-os-axi/inbox.json`), `format.mjs` (turns feedback batches into TOON), and `motion-os-axi.mjs` (commands). `player/serve.mjs` gains `/feedback` and `/poll` endpoints and registers itself; the player builds a `feedback()` payload and POSTs it.
 
 **Tech Stack:** Node 18+ built-ins only (`node:http`, `node:fs`, `node:child_process`, global `fetch`); ffmpeg/ffprobe optional; the player stays one HTML file.
 
@@ -14,11 +14,11 @@
 
 - Zero dependencies. Run as `node "$SKILL_DIR/bin/motion-os-axi.mjs"`. Not published to npm.
 - Send delivers to `poll` only; the copy-paste prompt sheet is removed.
-- stdout is TOON only; logs and debug go to stderr or `<project>/.motion-os/server.log`. Nothing prompts interactively.
+- stdout is TOON only; logs and debug go to stderr or `<project>/.motion-os-axi/server.log`. Nothing prompts interactively.
 - Errors: `error: <code>` + `message: <text>`, exit 1; unknown command/flag: `error: usage`, exit 2.
 - Text fields truncate at 120 chars with `…(+N chars)`; `--full` disables truncation.
 - Every output ends with `help[N]:` next-step lines using `<project>` / `<t>` placeholders.
-- Registry path `~/.motion-os/players.json`, overridable with env `MOTION_OS_HOME` (tests use a temp dir).
+- Registry path `~/.motion-os-axi/players.json`, overridable with env `MOTION_OS_AXI_HOME` (tests use a temp dir).
 - POSTs to the server accept only `localhost`/`127.0.0.1` origins (as `/export` does).
 - `node player/serve.mjs <project>` must keep working on its own.
 - Commits only when the user okays them (they approved commits for the previous batch; ask again at the end).
@@ -43,7 +43,7 @@ Shell helpers used below:
 ```bash
 cd /Users/zhiyaochan/Projects/skills/motion-os
 AXI="node bin/motion-os-axi.mjs"
-export MOTION_OS_HOME=$(mktemp -d)        # keep tests out of the real registry until Task 6
+export MOTION_OS_AXI_HOME=$(mktemp -d)        # keep tests out of the real registry until Task 6
 export CHROME_DEVTOOLS_AXI_SESSION=motionos
 E() { chrome-devtools-axi eval "$1" 2>&1 | head -1; }
 ```
@@ -83,7 +83,7 @@ export async function selftest(){
 
 ```js
 #!/usr/bin/env node
-// motion-os-axi: the agent-facing CLI for Motion OS (https://axi.md). Zero dependencies.
+// motion-os-axi: the agent-facing CLI for Motion OS AXI (https://axi.md). Zero dependencies.
 import {selftest} from './selftest.mjs';
 
 const args = process.argv.slice(2);
@@ -225,7 +225,7 @@ export function checkReel(dir){
 
 ```js
 #!/usr/bin/env node
-// motion-os-axi: the agent-facing CLI for Motion OS (https://axi.md). Zero dependencies.
+// motion-os-axi: the agent-facing CLI for Motion OS AXI (https://axi.md). Zero dependencies.
 // stdout is TOON; every output ends with help[] next steps; errors exit 1, usage errors exit 2.
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -298,11 +298,11 @@ Expected: qbot-tag `problems: 0` exit 0. Herdcats: no errors, exit 0 (a `warn` a
 
 ```js
   // store: registry and queue, in a temp home and project
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'motionos-test-')), proj = path.join(tmp, 'proj');
-  process.env.MOTION_OS_HOME = path.join(tmp, 'home'); fs.mkdirSync(proj);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'motion-os-axi-test-')), proj = path.join(tmp, 'proj');
+  process.env.MOTION_OS_AXI_HOME = path.join(tmp, 'home'); fs.mkdirSync(proj);
   addPlayer(proj, 5555); eq(Object.keys(readPlayers()), [proj], 'registry add');
   eq(readPlayers()[proj].pid, process.pid, 'registry pid is ours');
-  const db = path.join(process.env.MOTION_OS_HOME, 'players.json'), reg = JSON.parse(fs.readFileSync(db, 'utf8'));
+  const db = path.join(process.env.MOTION_OS_AXI_HOME, 'players.json'), reg = JSON.parse(fs.readFileSync(db, 'utf8'));
   reg['/gone'] = {port: 1, pid: 999999, started: 0}; fs.writeFileSync(db, JSON.stringify(reg));
   eq(Object.keys(readPlayers()), [proj], 'dead pids are dropped');
   removePlayer(proj); eq(readPlayers(), {}, 'registry remove');
@@ -338,12 +338,12 @@ Expected: qbot-tag `problems: 0` exit 0. Herdcats: no errors, exit 0 (a `warn` a
 - [ ] **Step 3: Implement** `bin/store.mjs`:
 
 ```js
-// Where Motion OS keeps state: the player registry (~/.motion-os/players.json) and each project's feedback queue.
+// Where Motion OS AXI keeps state: the player registry (~/.motion-os-axi/players.json) and each project's feedback queue.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const home = () => process.env.MOTION_OS_HOME || path.join(os.homedir(), '.motion-os');
+export const home = () => process.env.MOTION_OS_AXI_HOME || path.join(os.homedir(), '.motion-os-axi');
 const regFile = () => path.join(home(), 'players.json');
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), {recursive: true}); const t = f + '.' + process.pid + '.tmp'; fs.writeFileSync(t, JSON.stringify(v, null, 1)); fs.renameSync(t, f); };
@@ -357,7 +357,7 @@ export function readPlayers(){
 export function addPlayer(dir, port){ const all = readPlayers(); all[dir] = {port, pid: process.pid, started: Date.now()}; writeJson(regFile(), all); }
 export function removePlayer(dir){ const all = readJson(regFile(), {}); if (all[dir]?.pid === process.pid || !alive(all[dir]?.pid)) { delete all[dir]; writeJson(regFile(), all); } }
 
-export const queuePath = dir => path.join(dir, '.motion-os', 'inbox.json');
+export const queuePath = dir => path.join(dir, '.motion-os-axi', 'inbox.json');
 export const readQueue = dir => readJson(queuePath(dir), []);
 export function pushBatch(dir, payload){
   const q = readQueue(dir), b = {id: Date.now().toString(36) + q.length, at: new Date().toISOString(), version: payload?.version ?? null, payload};
@@ -497,7 +497,7 @@ function cmdStatus(){
     let reel = {}; try { reel = JSON.parse(fs.readFileSync(path.join(dir, 'reel.json'), 'utf8')); } catch {}
     return {project: dir, url: `http://localhost:${p.port}`, version: reel.version ?? null, scenes: reel.scenes?.length ?? null, waiting: readQueue(dir).length};
   });
-  out({bin: BIN, description: 'Motion OS: build a video in code, review it in a local player, get the user\'s feedback back with poll',
+  out({bin: BIN, description: 'Motion OS AXI: build a video in code, review it in a local player, get the user\'s feedback back with poll',
        ...(ps.length ? {players: ps} : {players: 'none running'})},
     ps.length ? [`Run \`${AXI} poll <project>\` to wait for the user's feedback`, `Run \`${AXI} check <project>\` after each re-render`]
               : [`Run \`${AXI} open <project>\` to open a project (a folder with reel.json) in the player`, `Run \`${AXI} --help\` for all commands`]);
@@ -505,15 +505,15 @@ function cmdStatus(){
 
 async function cmdOpen(){
   const dir = projectDir(pos[1]);
-  if (!fs.existsSync(path.join(dir, 'reel.json'))) fail('no_reel', `no reel.json in ${dir}`, ['Write reel.json first (see the motion-os skill, step 4)']);
+  if (!fs.existsSync(path.join(dir, 'reel.json'))) fail('no_reel', `no reel.json in ${dir}`, ['Write reel.json first (see the motion-os-axi skill, step 4)']);
   const errors = checkReel(dir).problems.filter(p => p.level === 'error').length;
   let p = player(dir), status = 'reused';
   if (!p) {
-    fs.mkdirSync(path.join(dir, '.motion-os'), {recursive: true});
-    const log = fs.openSync(path.join(dir, '.motion-os', 'server.log'), 'a');
+    fs.mkdirSync(path.join(dir, '.motion-os-axi'), {recursive: true});
+    const log = fs.openSync(path.join(dir, '.motion-os-axi', 'server.log'), 'a');
     spawn(process.execPath, [SERVE, dir, '--no-open'], {detached: true, stdio: ['ignore', log, log]}).unref();
     for (let i = 0; i < 50 && !(p = player(dir)); i++) await sleep(100);
-    if (!p) fail('start_failed', `the player didn't start; see ${path.join(dir, '.motion-os', 'server.log')}`);
+    if (!p) fail('start_failed', `the player didn't start; see ${path.join(dir, '.motion-os-axi', 'server.log')}`);
     status = 'started';
   }
   if (!flags.has('--no-open')) openBrowser(p.url);
@@ -547,7 +547,7 @@ function cmdFrame(){
   const dir = projectDir(pos[1]), t = Number(pos[2]);
   if (!pos[2] || isNaN(t)) usage('frame needs <project> <t> (seconds)');
   let reel; try { reel = JSON.parse(fs.readFileSync(path.join(dir, 'reel.json'), 'utf8')); } catch { fail('no_reel', `no readable reel.json in ${dir}`); }
-  const file = path.join(dir, '.motion-os', 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
+  const file = path.join(dir, '.motion-os-axi', 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
   try { execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', path.join(dir, reel.src), '-frames:v', '1', file], {stdio: ['ignore', 'ignore', 'pipe']}); }
   catch (e) { fail(e.code === 'ENOENT' ? 'no_ffmpeg' : 'ffmpeg_failed', e.code === 'ENOENT' ? 'ffmpeg is not installed' : String(e.stderr || e.message).trim()); }
   out({frame: file, t}, ['Read the image to see what the note points at']);
@@ -609,7 +609,7 @@ $AXI open examples/qbot-tag --no-open                    # status: started, url
 $AXI open examples/qbot-tag --no-open                    # status: reused, same url
 $AXI                                                     # players[1] row with version, scenes 8, waiting 0
 $AXI poll examples/qbot-tag --timeout 2                  # feedback: none yet
-$AXI frame examples/qbot-tag 3.2; ls -l examples/qbot-tag/.motion-os/frames/
+$AXI frame examples/qbot-tag 3.2; ls -l examples/qbot-tag/.motion-os-axi/frames/
 $AXI export examples/qbot-tag                            # state: idle + help
 $AXI stop examples/qbot-tag; $AXI                        # stopped[1], then none running
 $AXI poll examples/qbot-tag --timeout 1; echo "exit $?"  # error: no_player, exit 1
@@ -619,7 +619,7 @@ $AXI setup-hook
 
 Stale registry (Review Focus 3): `$AXI open examples/qbot-tag --no-open`, then `kill -9 <pid from registry>`, then `$AXI` → `players: none running`, and `$AXI open ... --no-open` → `status: started`. Stop it after.
 
-Add `examples/qbot-tag/.motion-os/` to the repo's `.gitignore` (create the file with `.motion-os/`).
+Add `examples/qbot-tag/.motion-os-axi/` to the repo's `.gitignore` (create the file with `.motion-os-axi/`).
 
 - [ ] **Step 7: Checkpoint.**
 
@@ -717,13 +717,13 @@ and call `checkWaiting()` inside the existing 3 s `setInterval` (first line of i
 - [ ] **Step 6: End to end on qbot-tag.**
 
 ```bash
-$AXI poll examples/qbot-tag --timeout 60 > $MOTION_OS_HOME/poll.out &   # run as a tracked background job
+$AXI poll examples/qbot-tag --timeout 60 > $MOTION_OS_AXI_HOME/poll.out &   # run as a tracked background job
 E "(() => { localStorage.clear(); location.reload(); return 1; })()"; sleep 3
 E "(() => { const e = allEls().find(x => Object.values(x.props).some(p => p.type === 'text')); const k = Object.keys(e.props).find(k => e.props[k].type === 'text');
   set(e.id + '.' + k, 'Changed, with a comma', e.props[k].v); st.notes.push({id: 99, t: 3.2, x: 40, y: 50, el: null, text: 'Slow this down: it feels rushed'});
   set(P.scenes[0].id + '.@len', fps1(P.scenes[0].t[1] - P.scenes[0].t[0] - 1), P.scenes[0].t[1] - P.scenes[0].t[0]); renderAll(); return 1; })()"
 E "(async () => { await sendFeedback(); return document.querySelector('.toast')?.textContent; })()"   # Sent to Claude
-wait; cat $MOTION_OS_HOME/poll.out
+wait; cat $MOTION_OS_AXI_HOME/poll.out
 $AXI poll examples/qbot-tag --timeout 2                                  # feedback: none yet
 E "(() => { checkWaiting(); return 1; })()"; sleep 1; E "document.querySelector('#waitBadge').hidden"   # true
 ```
@@ -740,7 +740,7 @@ Clean up: `E "(() => { localStorage.clear(); return 1; })()"`, `$AXI stop`.
 
 **Files:** Modify `SKILL.md`.
 
-- [ ] **Step 1: Top-of-file AXI note.** After the first paragraph under `# Motion OS`, add:
+- [ ] **Step 1: Top-of-file AXI note.** After the first paragraph under `# Motion OS AXI`, add:
 
 ```markdown
 Drive it with the `motion-os-axi` CLI (an [AXI](https://axi.md)): `node "$SKILL_DIR/bin/motion-os-axi.mjs"`. Run it with no arguments for running players; every command ends with next steps, and `--help` works everywhere. It needs only Node 18+ (ffmpeg for `frame`).
@@ -755,22 +755,22 @@ Drive it with the `motion-os-axi` CLI (an [AXI](https://axi.md)): `node "$SKILL_
 node "$SKILL_DIR/bin/motion-os-axi.mjs" open "<project>"
 ```
 
-It starts the player (or reuses the one already serving this project), opens the browser and prints the URL. Motion OS keeps its queue, frames and log in `<project>/.motion-os/`; add that to the project's `.gitignore`.
+It starts the player (or reuses the one already serving this project), opens the browser and prints the URL. Motion OS AXI keeps its queue, frames and log in `<project>/.motion-os-axi/`; add that to the project's `.gitignore`.
 ```
 
 and in the "Then tell the user" paragraph replace `and when they're done, click **Send to Claude**, copy the prompt and paste it here.` with `and when they're done, click **Send to Claude**.`
 
-- [ ] **Step 4: Step 6:** replace the heading paragraph `When the user pastes a prompt starting with "Motion OS feedback for":` with:
+- [ ] **Step 4: Step 6:** replace the heading paragraph `When the user pastes a prompt starting with "Motion OS AXI feedback for":` with:
 
 ```markdown
 Run `motion-os-axi poll <project>` and leave it running until it returns (in the foreground, or as a background job your harness tracks and wakes you for; if it's interrupted, run it again, feedback stays queued). It prints the user's edits, notes, trims, links and scene statuses as rows; times are render time in seconds. Then:
 ```
 
-and change the Notes bullet's frame command to `` `motion-os-axi frame <project> <t>` `` (instead of the raw ffmpeg line). Update the skill's frontmatter `description`: replace `or pastes feedback that starts with "Motion OS feedback for"` with `or wants feedback from an open Motion OS player`.
+and change the Notes bullet's frame command to `` `motion-os-axi frame <project> <t>` `` (instead of the raw ffmpeg line). Update the skill's frontmatter `description`: replace `or pastes feedback that starts with "Motion OS AXI feedback for"` with `or wants feedback from an open Motion OS AXI player`.
 
 - [ ] **Step 5: Read back** `git diff SKILL.md`.
 
-- [ ] **Step 6: Herdcats, real registry.** `unset MOTION_OS_HOME`. The Herdcats player on 4321 was started by the old `serve.mjs` (not registered): stop it (`kill` its pid from `lsof -ti :4321`), then `$AXI open /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video --no-open` → `status: started` (port 4321 or next). Run its player `selftest()` → `selftest ok`. Add keyframes to the tagline (`addKey` as before), `sendFeedback()`, and `$AXI poll <herdcats>` shows a `keyframes` row. Leave this player running for the user, with storage cleared.
+- [ ] **Step 6: Herdcats, real registry.** `unset MOTION_OS_AXI_HOME`. The Herdcats player on 4321 was started by the old `serve.mjs` (not registered): stop it (`kill` its pid from `lsof -ti :4321`), then `$AXI open /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video --no-open` → `status: started` (port 4321 or next). Run its player `selftest()` → `selftest ok`. Add keyframes to the tagline (`addKey` as before), `sendFeedback()`, and `$AXI poll <herdcats>` shows a `keyframes` row. Leave this player running for the user, with storage cleared.
 
 - [ ] **Step 7: Full check run:** `$AXI --selftest`, `node player/serve.mjs --selftest`, `$AXI check examples/qbot-tag`, `$AXI check <herdcats>` — all clean.
 

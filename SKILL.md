@@ -1,11 +1,11 @@
 ---
-name: motion-os
-description: Build motion graphics and launch videos in code, then open them in Motion OS, a local scene-by-scene review player where the user edits copy, pins notes on the frame, and sends feedback back. Use when the user asks for a motion graphic, launch video, explainer, product video or animated ad, says "motion os", or wants feedback from an open Motion OS player.
+name: motion-os-axi
+description: Build motion graphics and launch videos in code, then open them in Motion OS AXI, a local scene-by-scene review player where the user edits copy, pins notes on the frame, and sends feedback back. Use when the user asks for a motion graphic, launch video, explainer, product video or animated ad, says "motion-os-axi", or wants feedback from an open Motion OS AXI player.
 ---
 
-# Motion OS
+# Motion OS AXI
 
-Motion OS is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Agent**, and you pick it up with `motion-os-axi poll`. You apply it, re-render, bump the version, and the player reloads itself.
+Motion OS AXI is a workflow plus a local player. You build the video in code, render it, describe it in `reel.json`, and open the player. The user reviews it scene by scene, edits copy, pins notes on the frame, clicks **Send to Agent**, and you pick it up with `motion-os-axi poll`. You apply it, re-render, bump the version, and the player reloads itself.
 
 `SKILL_DIR` below means the folder this file is in (the player is at `SKILL_DIR/player/`).
 
@@ -89,8 +89,8 @@ For Remotion projects, give the player a live renderer so Edit mode changes show
   - no entry: the element's `keys` from reel.json, if any (bundled from reel.json, so rebuild the bundle when they change). An entry replaces them (`keys: []` = no animation). Don't also animate that element's box in scene code, or the motion is applied twice.
 
   Work out `[nx, ny, nw, nh]` for the current frame, then apply `translate(nx-x %, ny-y %) scale(nw/w)` with `transform-origin: x% y%`. `useCurrentFrame()` is relative to the scene's `<Sequence>`, so give `Ed` the scene's start frame (a context set where the Sequence is mounted) and use `t = (sceneFrom + frame) / fps`. No edit means render children untouched.
-- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSLive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
-- Add an entry that mounts `@remotion/player` and sets `window.MotionOSLive = el => ({ref, setBoxes, setRate})`. Bundle it with esbuild into the project folder and set `"live": "motionos-live.js"` in reel.json.
+- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSAXILive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
+- Add an entry that mounts `@remotion/player` and sets `window.MotionOSAXILive = el => ({ref, setBoxes, setRate})`. Bundle it with esbuild into the project folder and set `"live": "motion-os-axi-live.js"` in reel.json.
 - Add `"export": {"cwd": "<folder with node_modules>", "props": {...}, "cmd": "..."}`. The command gets `$PROPS` (JSON with the edits), `$RAW`, `$OUT` (`exports/<id>-<time>.mp4`, never overwritten) and `$PROJECT`. Example: `npx remotion render src/index.tsx Main "$OUT" --props="$PROPS"`.
 - `staticFile()` paths are served from the project's `public/` folder.
 - Elements with a `box` must be wrapped, or set `box` to null, otherwise dragging them does nothing.
@@ -103,7 +103,7 @@ Run (the player keeps running in the background while you work):
 node "$SKILL_DIR/bin/motion-os-axi.mjs" open "<project>"
 ```
 
-It starts the player (or reuses the one already serving this project), opens the browser and prints the URL. Motion OS keeps its feedback queue, frames and log in `<project>/.motion-os/`; add that to the project's `.gitignore`.
+It starts the player (or reuses the one already serving this project), opens the browser and prints the URL. Motion OS AXI keeps its feedback queue, frames and log in `<project>/.motion-os-axi/`; add that to the project's `.gitignore`.
 
 Then tell the user, in two or three lines: Preview plays it; Edit (E) pauses so they can click anything, drag to move, drag a corner to resize, press K at two moments to animate an element between them, drag a scene's end on the timeline to shorten it, press N to pin a note (notes appear in the Conversation pane on the right, where they can also type messages), the Script tab has every word, and when they're done, click **Send to Agent** at the bottom of the Conversation pane.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// motion-os-axi: the agent-facing CLI for Motion OS (https://axi.md). Zero dependencies.
+// motion-os-axi: the agent-facing CLI for Motion OS AXI (https://axi.md). Zero dependencies.
 // stdout is TOON; every output ends with help[] next steps; errors exit 1, usage errors exit 2.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,9 +7,9 @@ import {fileURLToPath} from 'node:url';
 import {spawn, execFile, execFileSync} from 'node:child_process';
 import {toon} from './toon.mjs';
 import {checkReel} from './check.mjs';
-import {readPlayers, readQueue, leaseQueue, ackQueue, appendTranscript, markTranscript, setDelivered, readDelivered, clearDelivered} from './store.mjs';
+import {storageDir, readPlayers, readQueue, leaseQueue, ackQueue, appendTranscript, markTranscript, setDelivered, readDelivered, clearDelivered} from './store.mjs';
 import {formatFeedback} from './format.mjs';
-import {selftest} from './selftest.mjs';
+import {resolveProjectFile} from './project-files.mjs';
 
 const BIN = fileURLToPath(import.meta.url), AXI = `node ${BIN}`, SERVE = fileURLToPath(new URL('../player/serve.mjs', import.meta.url));
 const argv = process.argv.slice(2), flags = new Set(argv.filter(a => a.startsWith('--')));
@@ -42,7 +42,7 @@ function cmdStatus(){
     const reel = readReel(dir) || {};
     return {project: dir, url: `http://localhost:${p.port}`, version: reel.version ?? null, scenes: reel.scenes?.length ?? null, waiting: readQueue(dir).length};
   });
-  out({bin: BIN, description: 'Motion OS: build a video in code, review it in a local player, get the user\'s feedback back with poll',
+  out({bin: BIN, description: 'Motion OS AXI: build a video in code, review it in a local player, get the user\'s feedback back with poll',
        players: ps.length ? ps : 'none running'},
     ps.length ? [`Run \`${AXI} poll <project>\` to wait for the user's feedback`, `Run \`${AXI} check <project>\` after each re-render`]
               : [`Run \`${AXI} open <project>\` to open a project (a folder with reel.json) in the player`, `Run \`${AXI} --help\` for all commands`]);
@@ -50,15 +50,16 @@ function cmdStatus(){
 
 async function cmdOpen(){
   const dir = projectDir(pos[1]);
-  if (!fs.existsSync(path.join(dir, 'reel.json'))) fail('no_reel', `no reel.json in ${dir}`, ['Write reel.json first (see the motion-os skill, step 4)']);
+  if (!fs.existsSync(path.join(dir, 'reel.json'))) fail('no_reel', `no reel.json in ${dir}`, ['Write reel.json first (see the motion-os-axi skill, step 4)']);
   const errors = checkReel(dir).problems.filter(p => p.level === 'error').length;
   let p = player(dir), status = 'reused';
   if (!p) {
-    fs.mkdirSync(path.join(dir, '.motion-os'), {recursive: true});
-    const log = fs.openSync(path.join(dir, '.motion-os', 'server.log'), 'a');
-    spawn(process.execPath, [SERVE, dir, '--no-open'], {detached: true, stdio: ['ignore', log, log]}).unref();
+    fs.mkdirSync(storageDir(dir), {recursive: true});
+    const log = fs.openSync(path.join(storageDir(dir), 'server.log'), 'a');
+    try { spawn(process.execPath, [SERVE, dir, '--no-open'], {detached: true, stdio: ['ignore', log, log]}).unref(); }
+    finally { fs.closeSync(log); }
     for (let i = 0; i < 50 && !(p = player(dir)); i++) await sleep(100);
-    if (!p) fail('start_failed', `the player didn't start; see ${path.join(dir, '.motion-os', 'server.log')}`);
+    if (!p) fail('start_failed', `the player didn't start; see ${path.join(storageDir(dir), 'server.log')}`);
     status = 'started';
   }
   if (!flags.has('--no-open')) openBrowser(p.url);
@@ -100,7 +101,9 @@ async function cmdPoll(){
     try {
       // the server answers within `ms`; the client gives it 5 s more so it never drops a reply that is on its way
       const ms = Math.max(100, Math.min(left, 25000)), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms + 5000);
-      const j = await fetch(`${p.url}/poll?ms=${ms}`, {signal: ctl.signal}).then(r => r.json()); clearTimeout(timer);
+      let j;
+      try { j = await fetch(`${p.url}/poll?ms=${ms}`, {signal: ctl.signal}).then(r => { if (!r.ok) throw new Error(`poll: HTTP ${r.status}`); return r.json(); }); }
+      finally { clearTimeout(timer); }
       if (j.batches?.length) {
         show(j.batches); setDelivered(dir, j.batches.map(b => b.id));   // printed first, then acked: if we die in between, the lease expires and the batch is offered again
         await fetch(p.url + '/ack', {method: 'POST', body: JSON.stringify({ids: j.batches.map(b => b.id)})}).catch(() => {});
@@ -115,8 +118,9 @@ function cmdFrame(){
   if (!pos[2] || isNaN(t)) usage('frame needs <project> <t> (seconds)');
   const reel = readReel(dir); if (!reel) fail('no_reel', `no readable reel.json in ${dir}`);
   if (typeof reel.src !== 'string') fail('no_src', 'reel.json has no "src" video to take the frame from', [`Run \`${AXI} check ${dir}\``]);
-  const file = path.join(dir, '.motion-os', 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
-  const src = [path.join(dir, reel.src), path.join(dir, 'public', reel.src)].find(f => fs.existsSync(f)) || path.join(dir, reel.src);   // same public/ fallback as the player server
+  const file = path.join(storageDir(dir), 'frames', `${t.toFixed(2)}.jpg`); fs.mkdirSync(path.dirname(file), {recursive: true});
+  const src = resolveProjectFile(dir, reel.src);
+  if (!src) fail('bad_src', 'src must stay inside the project');
   try { execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', src, '-frames:v', '1', file], {stdio: ['ignore', 'ignore', 'pipe']}); }
   catch (e) { fail(e.code === 'ENOENT' ? 'no_ffmpeg' : 'ffmpeg_failed', e.code === 'ENOENT' ? 'ffmpeg is not installed' : String(e.stderr || e.message).trim()); }
   out({frame: file, t}, ['Read the image to see what the note points at']);
@@ -144,7 +148,7 @@ function cmdHook(){
 }
 
 if (argv[0] === '--selftest') {
-  try { await selftest(); console.log('selftest ok'); } catch (e) { out({error: 'selftest', message: e.message}); process.exit(1); }
+  try { const {selftest} = await import('./selftest.mjs'); await selftest(); console.log('selftest ok'); } catch (e) { out({error: 'selftest', message: e.message}); process.exit(1); }
   process.exit(0);
 }
 if (!pos.length && flags.has('--help')) {

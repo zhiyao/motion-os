@@ -4,7 +4,7 @@
 
 **Goal:** Three-column player (edit tabs left, video middle, Conversation right) where everything queued, sent, picked up and replied lives in a Lavish-style conversation with a composer and **Send to Agent**, plus `poll --reply` so the agent can answer and a presence indicator.
 
-**Architecture:** The server keeps a per-project transcript (`.motion-os/transcript.json`) next to the queue: Send appends a user entry, a lease marks it picked, `/reply` appends an agent entry and marks picked entries done; `/transcript` returns entries plus presence. The CLI's `poll --reply` posts first, then polls. The player splits the conversation log into a transcript container (refreshed every 2 s from `/transcript`) and a queue container (rendered from local state), so typing in a queued note never gets clobbered by a refresh.
+**Architecture:** The server keeps a per-project transcript (`.motion-os-axi/transcript.json`) next to the queue: Send appends a user entry, a lease marks it picked, `/reply` appends an agent entry and marks picked entries done; `/transcript` returns entries plus presence. The CLI's `poll --reply` posts first, then polls. The player splits the conversation log into a transcript container (refreshed every 2 s from `/transcript`) and a queue container (rendered from local state), so typing in a queued note never gets clobbered by a refresh.
 
 **Tech Stack:** Node 18 built-ins; single-file player (HTML/CSS/JS); `chrome-devtools-axi` for browser checks.
 
@@ -15,7 +15,7 @@
 - Left panel 340px with tabs Scene, Script, Style, Media (Notes tab removed); right Conversation panel 360px; middle unchanged.
 - ≤1100px: Conversation is a right-side drawer opened from a top-bar "Conversation" button showing the queued count; <820px: bottom sheet, max 80% of viewport height.
 - Top bar loses Send to Claude and the waiting badge; Export MP4 stays.
-- Presence labels exactly: "Agent listening" (green), "Agent working" (amber), "No agent listening" (grey); idle hint: "Your feedback waits here. Start an agent with `bin/monitor-motion-os` or ask Claude to poll."
+- Presence labels exactly: "Agent listening" (green), "Agent working" (amber), "No agent listening" (grey); idle hint: "Your feedback waits here. Start an agent with `bin/monitor-motion-os-axi` or ask Claude to poll."
 - User transcript statuses: sent → picked ("Picked up") → done ("Done").
 - Agent replies render only: paragraphs, line breaks, `-`/`1.` lists, `**bold**`, `*italic*`, `` `code` ``, fenced code, http(s) links. No raw HTML.
 - `/reply` and `/transcript` use the same local-only check as `/feedback`/`/poll`; request bodies over 1 MB → 413.
@@ -40,13 +40,13 @@
 - `bin/selftest.mjs`: new cases.
 - `player/serve.mjs`: body limit helper, transcript writes, `/reply`, `/transcript`, presence.
 - `player/index.html`: layout, Conversation pane, queue, composer, transcript rendering, markdown, presence, removal of Notes tab and top Send.
-- `SKILL.md`; Herdcats `bin/start-motion-os`, `bin/monitor-motion-os`.
+- `SKILL.md`; Herdcats `bin/start-motion-os-axi`, `bin/monitor-motion-os-axi`.
 
 Helpers for browser steps:
 
 ```bash
 cd /Users/zhiyaochan/Projects/skills/motion-os
-export CHROME_DEVTOOLS_AXI_SESSION=motionos MOTION_OS_HOME=$(mktemp -d)
+export CHROME_DEVTOOLS_AXI_SESSION=motionos MOTION_OS_AXI_HOME=$(mktemp -d)
 E() { chrome-devtools-axi eval "$1" 2>&1 | head -1; }
 T() { E "(async () => { try { return await selftest(); } catch (e) { return 'FAIL ' + e.message; } })()"; }
 S=/private/tmp/claude-501/-Users-zhiyaochan-Projects-ios-app-herdcats/ea6b1804-48f6-461b-b532-1b5534a92163/scratchpad
@@ -79,7 +79,7 @@ Use qbot-tag for browser work: `node bin/motion-os-axi.mjs open examples/qbot-ta
   eq(readTranscript(proj).at(-1).text, 'Done: all good', 'reply recorded without a player');
   let usageExit = 0; try { execFileSync(process.execPath, [cli, 'poll', proj, '--reply'], {env: process.env, stdio: 'pipe'}); } catch (e) { usageExit = e.status; }
   eq(usageExit, 2, '--reply needs text');
-  fs.rmSync(path.join(proj, '.motion-os', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
+  fs.rmSync(path.join(proj, '.motion-os-axi', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
 ```
 
 and in the format section add:
@@ -97,7 +97,7 @@ and change the existing counts assertion to `'edits=1 notes=1 trims=0 links=1 me
 
 ```js
 // Transcript: what the user sent and what the agent replied, shown in the player's Conversation pane.
-export const transcriptPath = dir => path.join(dir, '.motion-os', 'transcript.json');
+export const transcriptPath = dir => path.join(dir, '.motion-os-axi', 'transcript.json');
 export const readTranscript = dir => readJson(transcriptPath(dir), []);
 export function appendTranscript(dir, entry){ const e = {id: newId(), at: new Date().toISOString(), ...entry}; writeJson(transcriptPath(dir), [...readTranscript(dir), e]); return e; }
 export function markTranscript(dir, pred, status){
@@ -237,7 +237,7 @@ Desk: move `<aside class="panel">…</aside>` to be the first child of `.desk`, 
 ```html
     <aside class="convo" id="convo" aria-label="Conversation">
       <div class="ch"><h2>Conversation</h2><span class="pres off" id="presence"><i></i><span>No agent listening</span></span><button class="btn ghost sm close" id="convoClose" aria-label="Close conversation">×</button></div>
-      <div class="hint" id="presHint" hidden>Your feedback waits here. Start an agent with <code>bin/monitor-motion-os</code> or ask Claude to poll.</div>
+      <div class="hint" id="presHint" hidden>Your feedback waits here. Ask your agent to run <code>motion-os-axi poll &lt;project&gt;</code>.</div>
       <div class="log" id="convoLog"><div id="convoT"></div><div id="convoQ"></div></div>
       <div class="composer">
         <textarea id="msgIn" rows="2" placeholder="Message the agent… Enter queues it, Shift+Enter for a new line"></textarea>
@@ -499,17 +499,17 @@ E "(() => { const e = allEls().find(x => Object.values(x.props).some(p => p.type
   set(e.id + '.' + k, 'Changed, again', e.props[k].v); st.notes.push({id: 99, t: 3.2, x: 40, y: 50, el: null, text: 'Slower here'}); renderAll(); return 1; })()"
 E "(() => { const m = document.querySelector('#msgIn'); m.value = 'Make the whole thing 10% faster'; m.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})); return document.querySelector('#queueN').textContent; })()"
 chrome-devtools-axi screenshot $S/conv-queued.png
-node bin/motion-os-axi.mjs poll examples/qbot-tag --timeout 30 > $MOTION_OS_HOME/p.out &   # tracked background job
+node bin/motion-os-axi.mjs poll examples/qbot-tag --timeout 30 > $MOTION_OS_AXI_HOME/p.out &   # tracked background job
 sleep 1; E "(() => document.querySelector('#presence').textContent)()"           # Agent listening
 E "(async () => { await sendFeedback(); return document.querySelector('#queueN').textContent; })()"   # Nothing queued
-wait; grep -E "^counts|^messages|Changed, again|Slower here" $MOTION_OS_HOME/p.out
+wait; grep -E "^counts|^messages|Changed, again|Slower here" $MOTION_OS_AXI_HOME/p.out
 sleep 2; E "(() => [document.querySelector('#presence').textContent, document.querySelector('#convoT .chip')?.textContent].join(' | '))()"   # Agent working | Picked up
 node bin/motion-os-axi.mjs poll examples/qbot-tag --reply 'Done: changed the title and **slowed** scene 1. See `S1`.' --timeout 3
 sleep 2; E "(() => [document.querySelector('#convoT .chip')?.textContent, document.querySelector('#convoT .agent .md')?.innerHTML].join(' | '))()"   # Done | <p>Done: ... <b>slowed</b> ... <code>S1</code>.</p>
 chrome-devtools-axi screenshot $S/conv-replied.png
 ```
 
-Expected as commented; poll output has `counts: edits=1 notes=2 trims=0 links=0 messages=1` (qbot ships an example note), the `messages[1]` line and both texts. Read both screenshots: queued dashed bubbles + composer, then a "You" bubble marked Done and an "Agent" bubble with bold and code. Clean up: `E "(() => { localStorage.clear(); return 1; })()"`, `node bin/motion-os-axi.mjs stop`, `rm -f examples/qbot-tag/.motion-os/transcript.json examples/qbot-tag/.motion-os/inbox.json`.
+Expected as commented; poll output has `counts: edits=1 notes=2 trims=0 links=0 messages=1` (qbot ships an example note), the `messages[1]` line and both texts. Read both screenshots: queued dashed bubbles + composer, then a "You" bubble marked Done and an "Agent" bubble with bold and code. Clean up: `E "(() => { localStorage.clear(); return 1; })()"`, `node bin/motion-os-axi.mjs stop`, `rm -f examples/qbot-tag/.motion-os-axi/transcript.json examples/qbot-tag/.motion-os-axi/inbox.json`.
 
 - [ ] **Step 6: Checkpoint.**
 
@@ -517,7 +517,7 @@ Expected as commented; poll output has `counts: edits=1 notes=2 trims=0 links=0 
 
 ### Task 5: SKILL.md, Herdcats scripts, full regression
 
-**Files:** Modify `SKILL.md`; `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/bin/start-motion-os`, `bin/monitor-motion-os`.
+**Files:** Modify `SKILL.md`; `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/bin/start-motion-os-axi`, `bin/monitor-motion-os-axi`.
 
 - [ ] **Step 1: SKILL.md.**
 - Step 5 "Then tell the user" paragraph: replace `press N to pin a note,` with `press N to pin a note (notes appear in the Conversation pane on the right, where they can also type messages),` and `and when they're done, click **Send to Claude**.` with `and when they're done, click **Send to Agent** at the bottom of the Conversation pane.`
@@ -527,7 +527,7 @@ Expected as commented; poll output has `counts: edits=1 notes=2 trims=0 links=0 
 - [ ] **Step 2: Herdcats scripts.** In both scripts, replace loop steps 3–4:
 
 ```
-3. Save its output to .motion-os/applied/<date-time>.txt, then apply it the way the skill says: read any messages first, look at each note's frame, leave approved scenes alone, apply trims last. Re-render, run check, and set reel.json \"version\" to what poll asks for.
+3. Save its output to .motion-os-axi/applied/<date-time>.txt, then apply it the way the skill says: read any messages first, look at each note's frame, leave approved scenes alone, apply trims last. Re-render, run check, and set reel.json \"version\" to what poll asks for.
 4. Reply in the player's Conversation pane and keep listening in one step: run \`$AXI poll $DIR --reply \"<a few lines: what you changed, anything you couldn't do>\"\` as a background job. It returns at my next Send; go back to step 3.
 ```
 

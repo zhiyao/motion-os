@@ -4,7 +4,7 @@ Date: 2026-10-09 · Status: draft for review
 
 ## Goal
 
-Reorganise the Motion OS player into three columns: edit tabs on the left, the video in the middle, and a Conversation pane on the right. Everything that is queued, sent, picked up or replied to lives in that pane, the way Lavish's Conversation panel works. The agent can reply into it, and the pane shows whether an agent is listening.
+Reorganise the Motion OS AXI player into three columns: edit tabs on the left, the video in the middle, and a Conversation pane on the right. Everything that is queued, sent, picked up or replied to lives in that pane, the way Lavish's Conversation panel works. The agent can reply into it, and the pane shows whether an agent is listening.
 
 ## Layout
 
@@ -37,11 +37,11 @@ Order: transcript (oldest first), then the queue, then the composer.
 The pane header shows one of:
 - **Agent listening** (green): at least one `poll` is waiting on the server.
 - **Agent working** (amber): a batch was picked up and no reply has arrived since.
-- **No agent listening** (grey): neither. When items are queued or batches are waiting on the server, the hint reads "Your feedback waits here. Start an agent with `bin/monitor-motion-os` or ask Claude to poll."
+- **No agent listening** (grey): neither. When items are queued or batches are waiting on the server, the hint reads "Your feedback waits here. Start an agent with `bin/monitor-motion-os-axi` or ask Claude to poll."
 
 ## Server (`player/serve.mjs`)
 
-- Transcript: `<project>/.motion-os/transcript.json`, an array of `{id, role: 'user'|'agent', at, batch?, text?, status?}` (status for user entries: `sent`, `picked`, `done`).
+- Transcript: `<project>/.motion-os-axi/transcript.json`, an array of `{id, role: 'user'|'agent', at, batch?, text?, status?}` (status for user entries: `sent`, `picked`, `done`).
   - `POST /feedback` (existing) also appends a user entry `{id: batch.id, role: 'user', batch: payload, status: 'sent'}`.
   - When a poll leases a batch, its user entry becomes `picked`.
   - `POST /reply {text}` appends an agent entry and marks every `picked` user entry `done`.
@@ -67,7 +67,7 @@ The pane header shows one of:
 ## SKILL.md and Herdcats scripts
 
 - Step 6: after applying feedback, finish with `motion-os-axi poll <project> --reply "<short summary>"`, which also starts waiting for the next Send.
-- `bin/start-motion-os` and `bin/monitor-motion-os` in Herdcats: step 4 of the loop becomes "reply with a short summary using `poll --reply`, which also waits for the next Send".
+- `bin/start-motion-os-axi` and `bin/monitor-motion-os-axi` in Herdcats: step 4 of the loop becomes "reply with a short summary using `poll --reply`, which also waits for the next Send".
 
 ## Testing
 

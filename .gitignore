@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
+.motion-os-axi/
+
+# Existing project state from earlier versions
 .motion-os/

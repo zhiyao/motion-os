@@ -4,7 +4,7 @@ Date: 2026-10-09 · Status: draft for review
 
 ## Goal
 
-On the Motion OS timeline, the user drags a scene's right edge to the left to shorten it. The scene is cut (it plays as before and stops sooner), and every later scene moves earlier to close the gap. The player previews the trimmed edit for both live and mp4-only projects; live projects also export it; Claude gets the trims in the prompt.
+On the Motion OS AXI timeline, the user drags a scene's right edge to the left to shorten it. The scene is cut (it plays as before and stops sooner), and every later scene moves earlier to close the gap. The player previews the trimmed edit for both live and mp4-only projects; live projects also export it; Claude gets the trims in the prompt.
 
 ## Scope
 
@@ -46,7 +46,7 @@ Override path per scene: `"<sid>.@len": 3.0` (seconds). Absent means untrimmed. 
 ## Live renderer contract
 
 - New prop `scenes`: `{"S2": 3.0, ...}`, edited scene lengths in seconds (only trimmed scenes need be present).
-- `window.MotionOSLive(el)` may return `setScenes(lens)`; it re-renders the Player with `inputProps.scenes` and the new `durationInFrames`.
+- `window.MotionOSAXILive(el)` may return `setScenes(lens)`; it re-renders the Player with `inputProps.scenes` and the new `durationInFrames`.
 - The composition lays scenes out back to back from those lengths (`from = round(E_i * fps)`, `durationInFrames = round(L_i * fps)`) and computes its total duration from them (Remotion `calculateMetadata`), so Export renders the trimmed length.
 - `Ed` keyframe time uses the scene's **original** start (`round(S_i * fps)`), not its new `from`, since keyframes are stored in render time.
 - Export: the player sends `{boxes, scenes}`; `serve.mjs` already passes the whole body through `$PROPS`.
@@ -69,7 +69,7 @@ The prompt's header gains: "Times are in the current render (before trims)."
 
 ## Herdcats project
 
-`src/index.ts` (calculateMetadata from `scenes`), `src/Main.tsx` (layout from `scenes`, provide original start to `SceneFromCtx`), `src/live.tsx` (`setScenes`, duration), rebuild `motionos-live.js`. Add `"scenes": {}` to `reel.json` `export.props`.
+`src/index.ts` (calculateMetadata from `scenes`), `src/Main.tsx` (layout from `scenes`, provide original start to `SceneFromCtx`), `src/live.tsx` (`setScenes`, duration), rebuild `motion-os-axi-live.js`. Add `"scenes": {}` to `reel.json` `export.props`.
 
 ## Testing
 

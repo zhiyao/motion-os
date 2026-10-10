@@ -92,7 +92,7 @@
     } finally { delete re.keys; }
 ```
 
-- [ ] **Step 2: Run** on qbot (`node bin/motion-os-axi.mjs open examples/qbot-tag --no-open` with a temp `MOTION_OS_HOME`, open the URL, run `selftest()`) → `FAIL reel keys are the element's keyframes`.
+- [ ] **Step 2: Run** on qbot (`node bin/motion-os-axi.mjs open examples/qbot-tag --no-open` with a temp `MOTION_OS_AXI_HOME`, open the URL, run `selftest()`) → `FAIL reel keys are the element's keyframes`.
 
 - [ ] **Step 3: Implement.**
 
@@ -160,7 +160,7 @@ ${elKeys(e) ? keysHTML(e) : (`${e.id}.@keys` in st.over ? `<div class="f changed
 - [ ] **Step 3: Browser check.** Copy qbot-tag to a temp project, give one element `keys`, and open it:
 
 ```bash
-T=$(mktemp -d)/qbot && cp -R examples/qbot-tag $T && rm -rf $T/.motion-os
+T=$(mktemp -d)/qbot && cp -R examples/qbot-tag $T && rm -rf $T/.motion-os-axi
 python3 - "$T/reel.json" <<'PY'
 import json,sys; p=sys.argv[1]; r=json.load(open(p)); e=next(e for s in r['scenes'] for e in s['els'] if e.get('box') and e['t'][1]-e['t'][0]>3)
 b=e['box']; e['keys']=[{'t':round(e['t'][0]+0.5,2),'box':b},{'t':round(e['t'][0]+2.5,2),'box':[b[0]-10,b[1]-5,round(b[2]*1.2,1),round(b[3]*1.2,1)]}]

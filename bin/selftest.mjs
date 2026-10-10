@@ -61,11 +61,11 @@ export async function selftest(){
   r = good(); r.live = 'live.js'; r.export = {}; eq(msgs(r, {exists: p => p !== 'live.js'}), ['warn reel: live bundle live.js not found', 'warn reel: export has no cmd'], 'live and export');
 
   // store: registry and queue, in a temp home and project
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'motionos-test-')), proj = path.join(tmp, 'proj');
-  process.env.MOTION_OS_HOME = path.join(tmp, 'home'); fs.mkdirSync(proj);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'motion-os-axi-test-')), proj = path.join(tmp, 'proj');
+  process.env.MOTION_OS_AXI_HOME = path.join(tmp, 'home'); fs.mkdirSync(proj);
   addPlayer(proj, 5555); eq(Object.keys(readPlayers()), [proj], 'registry add');
   eq(readPlayers()[proj].pid, process.pid, 'registry pid is ours');
-  fs.writeFileSync(path.join(process.env.MOTION_OS_HOME, 'players', 'dead.json'), JSON.stringify({dir: '/gone', port: 1, pid: 999999, started: 0}));
+  fs.writeFileSync(path.join(process.env.MOTION_OS_AXI_HOME, 'players', 'dead.json'), JSON.stringify({dir: '/gone', port: 1, pid: 999999, started: 0}));
   eq(Object.keys(readPlayers()), [proj], 'dead pids are dropped');
   removePlayer(proj); eq(readPlayers(), {}, 'registry remove');
   eq(readQueue(proj), [], 'empty queue');
@@ -118,7 +118,7 @@ export async function selftest(){
   fs.writeFileSync(path.join(proj4, 'reel.json'), JSON.stringify({id: 'p4', src: 'v.mp4'}));
   let out4 = ''; try { out4 = execFileSync(process.execPath, [cli, 'frame', proj4, '1'], {env: process.env, stdio: 'pipe'}).toString(); } catch (e) { out4 = String(e.stdout); }
   eq(out4.startsWith('frame: '), true, 'frame finds a src that lives in public/');
-  fs.rmSync(path.join(proj, '.motion-os', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
+  fs.rmSync(path.join(proj, '.motion-os-axi', 'transcript.json'), {force: true});   // the server checks below start from an empty transcript
 
   // registry: players starting at the same moment must not overwrite each other
   const storeUrl = new URL('./store.mjs', import.meta.url).href;
@@ -130,10 +130,14 @@ export async function selftest(){
 
   // server: /feedback and /poll, one batch to exactly one of two waiting polls
   fs.copyFileSync(fileURLToPath(new URL('../examples/qbot-tag/reel.json', import.meta.url)), path.join(proj, 'reel.json'));
-  const srv = spawn(process.execPath, [fileURLToPath(new URL('../player/serve.mjs', import.meta.url)), proj, '--no-open', '--port', '4490'], {env: process.env, stdio: 'ignore'});
+  let serverOutput = '';
+  const srv = spawn(process.execPath, [fileURLToPath(new URL('../player/serve.mjs', import.meta.url)), proj, '--no-open', '--port', '4490'], {env: process.env, stdio: ['ignore', 'pipe', 'pipe']});
+  srv.stdout.on('data', d => serverOutput += d); srv.stderr.on('data', d => serverOutput += d);
   try {
     for (let i = 0; i < 50 && !readPlayers()[proj]; i++) await new Promise(r => setTimeout(r, 100));
-    const base = `http://localhost:${readPlayers()[proj].port}`;
+    const registered = readPlayers()[proj];
+    if (!registered) throw new Error(`test server failed to start: ${serverOutput.trim() || 'no registry entry after 5 seconds'}`);
+    const base = `http://localhost:${registered.port}`;
     eq((await (await fetch(base + '/feedback')).json()).waiting, 0, 'nothing waiting');
     const p1 = fetch(base + '/poll').then(r => r.json()), p2 = fetch(base + '/poll').then(r => r.json());
     await new Promise(r => setTimeout(r, 200));
@@ -165,7 +169,7 @@ export async function selftest(){
     await fetch(base + '/ack', {method: 'POST', body: JSON.stringify({ids: got.batches.map(b => b.id)})});
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: base}, body: 'x'.repeat(1100000)})).status, 413, 'oversized body refused');
     eq(await raw({host: 'evil.example'}, '/transcript'), 403, 'transcript is local-only');
-    eq([await raw({host: 'evil.example'}, '/.motion-os/inbox.json'), await raw({host: 'evil.example'}, '/reel.json')], [403, 403], 'every path refuses a foreign Host');
+    eq([await raw({host: 'evil.example'}, '/.motion-os-axi/inbox.json'), await raw({host: 'evil.example'}, '/reel.json')], [403, 403], 'every path refuses a foreign Host');
     eq((await fetch(base + '/reel.json')).status, 200, 'the player still loads its files');
     eq((await fetch(base + '/feedback', {method: 'POST', headers: {origin: 'http://localhost:1'}, body: '{}'})).status, 403, 'a page on another localhost port is refused');
     eq([await raw({'sec-fetch-site': 'cross-site'}, '/'), await raw({'sec-fetch-site': 'cross-site'}, '/feedback')], [200, 403], 'a link from another site opens the page; endpoints stay local');

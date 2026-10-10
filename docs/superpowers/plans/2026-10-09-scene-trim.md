@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let the user shorten a scene by dragging its end on the Motion OS timeline; later scenes ripple earlier, playback and Export show the trimmed edit, and Claude gets the trims in the prompt.
+**Goal:** Let the user shorten a scene by dragging its end on the Motion OS AXI timeline; later scenes ripple earlier, playback and Export show the trimmed edit, and Claude gets the trims in the prompt.
 
 **Architecture:** All stored times stay in render time (the current video's clock). A trim is one override per scene (`<sid>.@len`). Two pure mappings, `toEd` (render → edited) and `toSrc` (edited → render), convert at the edges: the timeline, the timecode and time fields show edited time; mp4 playback jumps over cut tails; the live renderer gets `scenes` lengths and its clock is converted back to render time in the `liveVideo` wrapper.
 
@@ -37,7 +37,7 @@
 - Herdcats `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/`:
   - `src/trim.ts` (create): pure `sceneLen(id, lens)`, `totalLen(lens)`, `Lens` type (imports only `reel.json`, so node can run its check).
   - `src/trim.check.ts` (create): assertions.
-  - `src/Main.tsx`, `src/index.ts`, `src/live.tsx` (modify); `reel.json` `export.props` (modify); `motionos-live.js` (rebuild).
+  - `src/Main.tsx`, `src/index.ts`, `src/live.tsx` (modify); `reel.json` `export.props` (modify); `motion-os-axi-live.js` (rebuild).
 
 Browser helpers used below:
 
@@ -333,13 +333,13 @@ Export fetch body: `JSON.stringify({boxes:liveBoxes()})` → `JSON.stringify({bo
 **Files:**
 - Create: `src/trim.ts`, `src/trim.check.ts`
 - Modify: `src/Main.tsx`, `src/index.ts`, `src/live.tsx`, `reel.json` (lines 803-805)
-- Rebuild: `motionos-live.js`
+- Rebuild: `motion-os-axi-live.js`
 
 **Interfaces:**
 - Consumes: `scenes` prop `{sid: seconds}` from Task 3.
-- Produces: `Lens = Record<string, number>`, `sceneLen(id: string, lens: Lens): number`, `totalLen(lens: Lens): number`; `MotionOSLive(el)` returns `{ref, setBoxes, setRate, setScenes}`.
+- Produces: `Lens = Record<string, number>`, `sceneLen(id: string, lens: Lens): number`, `totalLen(lens: Lens): number`; `MotionOSAXILive(el)` returns `{ref, setBoxes, setRate, setScenes}`.
 
-- [ ] **Step 1: Back up.** `cd /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video && mkdir -p $S/herdcats-backup-trim && cp -R src motionos-live.js reel.json $S/herdcats-backup-trim/`
+- [ ] **Step 1: Back up.** `cd /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video && mkdir -p $S/herdcats-backup-trim && cp -R src motion-os-axi-live.js reel.json $S/herdcats-backup-trim/`
 
 - [ ] **Step 2: Failing check** `src/trim.check.ts`:
 
@@ -362,7 +362,7 @@ console.log('trim check ok');
 ```ts
 import reel from '../reel.json';
 
-/** Motion OS scene trims: edited scene lengths in seconds, only for trimmed scenes. */
+/** Motion OS AXI scene trims: edited scene lengths in seconds, only for trimmed scenes. */
 export type Lens = Record<string, number>;
 
 const orig = (id: string) => { const [a, b] = reel.scenes.find((s) => s.id === id)!.t as [number, number]; return b - a; };
@@ -377,7 +377,7 @@ export const totalLen = (lens: Lens) => reel.scenes.reduce((n, s) => n + sceneLe
 `src/Main.tsx`: add `import {Lens, sceneLen} from './trim';` and replace the `Main` component with:
 
 ```tsx
-/** `boxes` keys are Motion OS element ids ("s3-headline"); each scene sees them without its prefix.
+/** `boxes` keys are Motion OS AXI element ids ("s3-headline"); each scene sees them without its prefix.
  *  `scenes` trims scenes (cut their tails); later scenes start earlier. */
 export const Main: React.FC<{boxes?: Boxes; scenes?: Lens}> = ({boxes = {}, scenes = {}}) => {
   let at = 0;
@@ -424,7 +424,7 @@ export const Main: React.FC<{boxes?: Boxes; scenes?: Lens}> = ({boxes = {}, scen
 
 ```bash
 npx tsc --noEmit; echo "tsc exit $?"
-npx esbuild src/live.tsx --bundle --format=iife --minify --define:process.env.NODE_ENV='"production"' --outfile=motionos-live.js --log-level=warning
+npx esbuild src/live.tsx --bundle --format=iife --minify --define:process.env.NODE_ENV='"production"' --outfile=motion-os-axi-live.js --log-level=warning
 npx esbuild src/trim.check.ts --bundle --platform=node --log-level=error | node
 npx esbuild src/keys.check.ts --bundle --platform=node --log-level=error | node
 python3 -c "import json; json.load(open('reel.json')); print('reel ok')"
@@ -444,7 +444,7 @@ Expected: `tsc exit 0`, `trim check ok`, `keys check ok`, `reel ok`. Reload `loc
 - [ ] **Step 1: Live projects.** After the `Ed` bullet in section 4, add:
 
 ```markdown
-- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSLive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
+- Lay scenes out from a `scenes` prop (`{"S2": 3.0}`: edited lengths in seconds, only trimmed scenes): each scene's `Sequence` starts where the previous edited one ends and lasts its edited length (never longer than the original). Compute the composition's `durationInFrames` from those lengths with `calculateMetadata`, and add `setScenes(lens)` to `MotionOSAXILive` (re-render the Player with the new `scenes` and duration). Keyframe times stay in the untrimmed clock, so `Ed`'s scene start is the scene's original `t[0]`, not its new start. Put `"scenes": {}` next to `"boxes": {}` in `export.props`. Without `setScenes` the player offers no trimming.
 ```
 
 - [ ] **Step 2: User intro (section 5).** After `press K at two moments to animate an element between them,` insert `drag a scene's end on the timeline to shorten it,`.

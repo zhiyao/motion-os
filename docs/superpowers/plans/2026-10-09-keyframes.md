@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let a Motion OS user give one element two keyframes (position and size at two moments) so it glides between them with ease in-out, live in the player, in Export MP4, and in the Send to Claude prompt.
+**Goal:** Let a Motion OS AXI user give one element two keyframes (position and size at two moments) so it glides between them with ease in-out, live in the player, in Export MP4, and in the Send to Claude prompt.
 
 **Architecture:** The player stores keyframes as one more override path (`<id>.@keys`) next to `@box`/`@time`, and a pure `keyBox(keys, t)` gives the box at any time. Everything that already reads an element's box (overlay, drag, ghost preview) goes through `elBox`, which now uses `keyBox` when keys exist. Live projects receive `{box, keys}` in `boxes[id]`; their `Ed` wrapper does the same math per frame using absolute video time.
 
@@ -40,7 +40,7 @@
 - `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/keys.check.ts` (create): assertions for `keys.ts`.
 - `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/lib.tsx` (modify): `Boxes` type, `SceneFromCtx`, `Ed` uses `editAt`.
 - `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/Main.tsx` (modify): provide each scene's start frame.
-- `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/motionos-live.js` (rebuild).
+- `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/motion-os-axi-live.js` (rebuild).
 
 Browser checks below use:
 
@@ -49,7 +49,7 @@ export CHROME_DEVTOOLS_AXI_SESSION=motionos
 E() { chrome-devtools-axi eval "$1"; }
 ```
 
-and the Herdcats player already running at `http://localhost:4321` (start it with `node ~/.claude/skills/motion-os/player/serve.mjs /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video --no-open` if it isn't).
+and the Herdcats player already running at `http://localhost:4321` (start it with `node ~/.claude/skills/motion-os-axi/player/serve.mjs /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video --no-open` if it isn't).
 
 ---
 
@@ -351,7 +351,7 @@ chrome-devtools-axi screenshot $S/keys-panel.png
 
 Expected: two keys at 12 and 14; at 13s the box is `[12.5, 44, 60, 12]` (halfway); 2 `.kf` diamonds; keyframe fields present. Read the screenshot: the diamonds sit under S2 on the timeline, the panel shows two keyframe rows, and the selected box on the frame is between the two positions. Then `E "document.querySelector('#sendBtn').click(), document.querySelector('.sheet textarea').value"` contains `keyframes, ease in-out` with `12s [20,44,60,12] -> 14s [5,44,60,12]`. Close the sheet with `chrome-devtools-axi press Escape` (don't click Copy, it marks edits as sent).
 
-- [ ] **Step 9: Regression check on an mp4-only project.** Run `node ~/.claude/skills/motion-os/player/serve.mjs ~/.claude/skills/motion-os/examples/qbot-tag --no-open --port 4400` in the background, open `http://localhost:4400`, run `E "selftest()"` → `selftest ok`, then add 2 keys to the first element with a box and confirm during playback (`E "(() => { play(); return 1; })()"`, wait 1s, screenshot) that the ghost patch moves. Stop the server afterwards.
+- [ ] **Step 9: Regression check on an mp4-only project.** Run `node ~/.claude/skills/motion-os-axi/player/serve.mjs ~/.claude/skills/motion-os-axi/examples/qbot-tag --no-open --port 4400` in the background, open `http://localhost:4400`, run `E "selftest()"` → `selftest ok`, then add 2 keys to the first element with a box and confirm during playback (`E "(() => { play(); return 1; })()"`, wait 1s, screenshot) that the ghost patch moves. Stop the server afterwards.
 
 - [ ] **Step 10: Checkpoint.** Commit only if okayed: `git add player/index.html && git commit -m "player: keyframe timeline row, panel, ghost preview, prompt line and live payload"`.
 
@@ -364,7 +364,7 @@ Expected: two keys at 12 and 14; at 13s the box is `[12.5, 44, 60, 12]` (halfway
 - Create: `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/keys.check.ts`
 - Modify: `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/lib.tsx:28-42` (`Boxes`, `BoxesCtx`, `Ed`)
 - Modify: `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/src/Main.tsx:4,22-26`
-- Rebuild: `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/motionos-live.js`
+- Rebuild: `/Users/zhiyaochan/Projects/ios-app/herdcats-launch-video/motion-os-axi-live.js`
 
 **Interfaces:**
 - Consumes: the `boxes[id]` shapes from Task 3 (`number[8]` or `{box, keys}`).
@@ -373,7 +373,7 @@ Expected: two keys at 12 and 14; at 13s the box is `[12.5, 44, 60, 12]` (halfway
 - [ ] **Step 1: Back up (not a git repo).**
 
 ```bash
-cd /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video && mkdir -p "$S/herdcats-backup" && cp -R src motionos-live.js "$S/herdcats-backup/"
+cd /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video && mkdir -p "$S/herdcats-backup" && cp -R src motion-os-axi-live.js "$S/herdcats-backup/"
 ```
 
 - [ ] **Step 2: Write the failing check** `src/keys.check.ts`:
@@ -402,7 +402,7 @@ Expected: build error `Could not resolve "./keys"`.
 - [ ] **Step 4: Implement** `src/keys.ts`:
 
 ```ts
-/** Motion OS box edits: a plain move [x, y, w, h, nx, ny, nw, nh], or keyframes {box, keys} with t in absolute video seconds. */
+/** Motion OS AXI box edits: a plain move [x, y, w, h, nx, ny, nw, nh], or keyframes {box, keys} with t in absolute video seconds. */
 export type Key = {t: number; box: number[]};
 export type BoxEdit = number[] | {box: number[]; keys: Key[]};
 
@@ -436,7 +436,7 @@ export const BoxesCtx = React.createContext<Boxes>({});
 /** First frame of the scene this element is in, so keyframe times (absolute seconds) line up with useCurrentFrame (scene-relative). */
 export const SceneFromCtx = React.createContext(0);
 
-/** Applies a Motion OS edit (move + scale, or keyframes) to an element. Untouched when not edited. */
+/** Applies a Motion OS AXI edit (move + scale, or keyframes) to an element. Untouched when not edited. */
 export const Ed: React.FC<{k: string; children: React.ReactNode}> = ({k, children}) => {
   const boxes = React.useContext(BoxesCtx);
   const from = React.useContext(SceneFromCtx);
@@ -469,10 +469,10 @@ In `src/Main.tsx`, change the lib import to `import {Boxes, BoxesCtx, C, SceneFr
 
 ```bash
 cd /Users/zhiyaochan/Projects/ios-app/herdcats-launch-video && npx tsc --noEmit && \
-npx esbuild src/live.tsx --bundle --format=iife --minify --define:process.env.NODE_ENV='"production"' --outfile=motionos-live.js --log-level=warning && ls -l motionos-live.js
+npx esbuild src/live.tsx --bundle --format=iife --minify --define:process.env.NODE_ENV='"production"' --outfile=motion-os-axi-live.js --log-level=warning && ls -l motion-os-axi-live.js
 ```
 
-Expected: no type errors; a fresh `motionos-live.js` of similar size to the backup. Reload `localhost:4321`; the video still plays and `E "selftest()"` → `selftest ok`.
+Expected: no type errors; a fresh `motion-os-axi-live.js` of similar size to the backup. Reload `localhost:4321`; the video still plays and `E "selftest()"` → `selftest ok`.
 
 - [ ] **Step 8: Checkpoint.** Herdcats has no git; the backup in `$S/herdcats-backup` is the rollback.
 

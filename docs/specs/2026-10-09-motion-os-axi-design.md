@@ -1,10 +1,10 @@
-# motion-os-axi: an agent-facing CLI for Motion OS
+# motion-os-axi: an agent-facing CLI for Motion OS AXI
 
 Date: 2026-10-09 · Status: draft for review
 
 ## Goal
 
-Make Motion OS an AXI (https://axi.md, "10 principles for agent-ergonomic CLI design"). The agent drives it through one CLI with compact output, and the user's feedback reaches the agent through `poll` instead of copy-paste. The player UI stays the review surface for the human.
+Make Motion OS AXI an AXI (https://axi.md, "10 principles for agent-ergonomic CLI design"). The agent drives it through one CLI with compact output, and the user's feedback reaches the agent through `poll` instead of copy-paste. The player UI stays the review surface for the human.
 
 ## Decisions (agreed)
 
@@ -32,8 +32,8 @@ Make Motion OS an AXI (https://axi.md, "10 principles for agent-ergonomic CLI de
 ### (no arguments)
 Content first: one line describing the tool and the bin path, then running players.
 ```
-bin: /…/motion-os/bin/motion-os-axi.mjs
-description: Motion OS: build a video in code, review it in a local player, get the user's feedback back with poll
+bin: /…/motion-os-axi/bin/motion-os-axi.mjs
+description: Motion OS AXI: build a video in code, review it in a local player, get the user's feedback back with poll
 players[1]{project,url,version,scenes,waiting}:
   /…/herdcats-launch-video,http://localhost:4321,2,7,1
 help[2]: …
@@ -42,7 +42,7 @@ help[2]: …
 
 ### open <project> [--no-open]
 - Runs `check` silently first; with errors, still opens but prints `problems: N (run check)`.
-- If the registry has a live server for this project, reuse it. Otherwise spawn `node serve.mjs <project> --no-open` detached, logging to `<project>/.motion-os/server.log`; wait (≤5 s) for it to report its port.
+- If the registry has a live server for this project, reuse it. Otherwise spawn `node serve.mjs <project> --no-open` detached, logging to `<project>/.motion-os-axi/server.log`; wait (≤5 s) for it to report its port.
 - Opens the browser unless `--no-open`. Prints `project`, `url`, `version`, `status: started|reused`.
 
 ### check <project>
@@ -73,7 +73,7 @@ help[…]: apply edits exactly then notes; leave approved scenes alone; grab a n
 `field` covers text/props, `timing`, `size+position` (from/to as `[x y w h]`), `keyframes` (to as `12s [x y w h] -> 14s [x y w h]`, ease in-out), `motion`, style colors/fonts/logo, audio. Several batches waiting: they are merged in order into one response.
 
 ### frame <project> <t>
-Saves the render's frame at `t` seconds (render time) to `<project>/.motion-os/frames/<t>.jpg` with ffmpeg and prints `frame: <path>`. Without ffmpeg: `error: no_ffmpeg`.
+Saves the render's frame at `t` seconds (render time) to `<project>/.motion-os-axi/frames/<t>.jpg` with ffmpeg and prints `frame: <path>`. Without ffmpeg: `error: no_ffmpeg`.
 
 ### export <project> [--wait]
 Reports the Export MP4 job the user started from the player: `state`, `pct`, `out`, last log line. `--wait` blocks until done or error. No running player: `error: no_player`. (Starting an export from the CLI is out of scope: the edits to bake in live in the browser.)
@@ -89,8 +89,8 @@ Runs the built-in checks (TOON encoding, reel checks, queue, range parsing) and 
 
 ## Server and registry
 
-- Registry: `~/.motion-os/players.json`, `{ "<abs project>": {port, pid, started} }`. `serve.mjs` adds its entry on listening and removes it on exit (SIGINT/SIGTERM). Readers drop entries whose pid is dead.
-- Queue: `<project>/.motion-os/inbox.json`, an array of batches `{id, at, version, payload}`. Survives server restarts.
+- Registry: `~/.motion-os-axi/players.json`, `{ "<abs project>": {port, pid, started} }`. `serve.mjs` adds its entry on listening and removes it on exit (SIGINT/SIGTERM). Readers drop entries whose pid is dead.
+- Queue: `<project>/.motion-os-axi/inbox.json`, an array of batches `{id, at, version, payload}`. Survives server restarts.
 - New endpoints on `serve.mjs` (same Origin rule as `/export`: only `localhost`/`127.0.0.1` origins may POST):
   - `POST /feedback` → appends the batch, returns `{ok, id, waiting}`.
   - `GET /feedback` → `{waiting}` count (the player shows "Waiting for Claude" while > 0).
@@ -108,7 +108,7 @@ Runs the built-in checks (TOON encoding, reel checks, queue, range parsing) and 
 
 - New "AXI" note at the top: run `node "$SKILL_DIR/bin/motion-os-axi.mjs"` for status; every command prints next steps.
 - Step 3 gains `check`. Step 5 becomes `open`. Step 6 becomes: run `poll` (foreground, or a harness-tracked background job; re-run it if interrupted, feedback stays queued), apply, re-render, `check`, set version.
-- Mention `.motion-os/` (queue, frames, log) and suggest adding it to the project's `.gitignore`.
+- Mention `.motion-os-axi/` (queue, frames, log) and suggest adding it to the project's `.gitignore`.
 
 ## Testing
 

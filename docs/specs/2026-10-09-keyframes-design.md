@@ -4,7 +4,7 @@ Date: 2026-10-09 · Status: draft for review
 
 ## Goal
 
-In the Motion OS player, let the user give one element two keyframes (a box at two moments) so it glides from one to the other. Live projects show the motion for real and can export it without Claude. Every project gets it in the Send to Claude prompt.
+In the Motion OS AXI player, let the user give one element two keyframes (a box at two moments) so it glides from one to the other. Live projects show the motion for real and can export it without Claude. Every project gets it in the Send to Claude prompt.
 
 ## Scope
 
@@ -76,7 +76,7 @@ A single keyframe reads as a plain size and position edit.
 
 ## Herdcats project
 
-Update `herdcats-launch-video/src/lib.tsx` (`Boxes` type, `Ed`, a `SceneStartCtx`) and `Main.tsx` (provide each scene's start frame), then rebuild `motionos-live.js` with esbuild.
+Update `herdcats-launch-video/src/lib.tsx` (`Boxes` type, `Ed`, a `SceneStartCtx`) and `Main.tsx` (provide each scene's start frame), then rebuild `motion-os-axi-live.js` with esbuild.
 
 ## Testing
 
