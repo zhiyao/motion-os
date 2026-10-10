@@ -158,6 +158,7 @@ bin/motion-os-axi.mjs     CLI entry point
 bin/                     validation, queue storage, and feedback formatting
 player/index.html        layout and styles
 player/app.mjs           editor interactions and conversation UI
+player/conversation.mjs  conversation markup and message formatting
 player/model.mjs         timeline, keyframes, indexes, and edit selectors
 player/state.mjs         browser persistence and version migration
 player/playback.mjs      live renderer video adapter
@@ -181,3 +182,11 @@ node player/serve.mjs --selftest
 Integration tests need permission to listen on localhost. The CLI selftest also needs ffmpeg. For interaction checks, open a disposable project copy and run `await window.selftest()` in the browser console; it exercises editing and persistence.
 
 MIT licensed. See [LICENSE](LICENSE).
+
+Source formatting is defined in `.prettierrc.json`. After editing JavaScript modules, run:
+
+```bash
+npx prettier@3.6.2 --write 'bin/*.mjs' 'player/*.mjs' 'tests/*.mjs'
+```
+
+The formatter is a development tool; running the player still requires no package install.
